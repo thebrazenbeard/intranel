@@ -59,11 +59,11 @@ class AdmissionRepairTests(unittest.TestCase):
             subject="operation:op-target",exact_subject="receipt:"+"b"*64,authority_claim_ref="auth:x",idempotency_key="cid",
             effect_class="PROTECTED_MUTATION",payload={"reason":"stop"})
         e=good_evidence(m)
-        self.assertIs(admit(m,e),AdmissionDecision.QUARANTINE)
+        self.assertIs(admit(m,e,prior_operation=None),AdmissionDecision.QUARANTINE)
         unknown=CancellationEvidence("op-target",m.exact_subject,None)
-        self.assertIs(admit(m,e,cancellation=unknown),AdmissionDecision.QUARANTINE)
+        self.assertIs(admit(m,e,prior_operation=None,cancellation=unknown),AdmissionDecision.QUARANTINE)
         no=CancellationEvidence("op-target",m.exact_subject,False)
-        self.assertIs(admit(m,e,cancellation=no),AdmissionDecision.REJECT)
+        self.assertIs(admit(m,e,prior_operation=None,cancellation=no),AdmissionDecision.REJECT)
         yes=CancellationEvidence("op-target",m.exact_subject,True)
         self.assertIs(admit(m,e,prior_operation=None,cancellation=yes),AdmissionDecision.ALLOW)
 
