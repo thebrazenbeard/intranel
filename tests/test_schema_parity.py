@@ -34,6 +34,9 @@ INVALID=[
  base(performative="RECEIPT",operation_id=None,exact_subject="receipt:x",receipt={"x":1}),
  base(payload={"v":1e-6}),
  base(payload={"é":1}),
+ base(origin="vera:primary\n"),
+ base(message_id="m\n"),
+ base(payload={"bad\n":1}),
 ]
 
 class SchemaParityTests(unittest.TestCase):
