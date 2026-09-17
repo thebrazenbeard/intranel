@@ -8,14 +8,18 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 
 ## V1 contains
 
-- strict `INTRANEL/1` message parsing;
+- strict `INTRANEL/1` message parsing and Draft 2020-12 schema parity tests;
 - namespaced addressing with distinct `origin`, `actor`, `target`, and `reply_to`;
 - closed performative/effect/security vocabularies;
-- mutation/idempotency requirements;
-- canonical UTF-8 JSON and SHA-256 content identity;
-- operation-semantic digests that survive legitimate relay/packet changes;
-- fail-closed receiver admission decisions;
-- normative JSON Schema;
+- packet identity separate from logical operation and cancellation-target identity;
+- receiver evidence bound to exact message/operation identity;
+- receiver-owned effect classification before mutation authority checks;
+- hard constraint/prohibition and transport-security admission evidence;
+- deep-immutable payload/receipt semantic state;
+- bounded canonical UTF-8 JSON and SHA-256 content identity;
+- relay-safe operation-semantic digests and fail-closed duplicate handling;
+- cancellation state/cancellability evidence;
+- receipt claims bound to prior operation/state without self-verifying their effect;
 - frozen interoperability vectors;
 - security-profile and Chat Communication Bus transport specifications.
 
@@ -25,11 +29,13 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 - encryption or key-management implementation;
 - binary wire encoding;
 - automatic authority delegation;
+- automatic proof that a receipt's claimed effect is true;
 - hidden reasoning transfer.
 
 ## Verify locally
 
 ```bash
+python -m pip install -e ".[test]"
 PYTHONPATH=src python -m unittest discover -s tests -v
 python -m compileall -q src tests
 ```

@@ -1,5 +1,5 @@
 import unittest
-from intranel.admission import ReceiverEvidence, OperationRecord, CancellationEvidence, admit, operation_digest
+from intranel.admission import CancellationEvidence, ReceiverEvidence, admit
 from intranel.canonical import canonical_json_bytes, content_digest
 from intranel.message import parse_message
 from intranel.types import AdmissionDecision, EffectClass

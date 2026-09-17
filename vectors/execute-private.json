@@ -6,6 +6,7 @@
   "reply_to": "bus:vera-v2",
   "message_id": "vec-exec-001",
   "operation_id": "exec-op-001",
+  "target_operation_id": null,
   "parent_message_id": null,
   "conversation_id": "vec-conv-002",
   "performative": "EXECUTE",

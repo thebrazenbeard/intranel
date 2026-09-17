@@ -56,6 +56,19 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("offset-aware iso 8601", text)
         self.assertIn("`expires_at` must be later than `observed_at`", text)
 
+    def test_hostile_repair_boundaries_are_explicit(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        for phrase in [
+            "receiver-owned effect",
+            "target_operation_id",
+            "transport_security_satisfied",
+            "receipt claim",
+            "non-integral floats",
+            "65536 bytes",
+        ]:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
 
 if __name__ == "__main__":
     unittest.main()
