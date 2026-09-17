@@ -65,7 +65,7 @@ class AdmissionRepairTests(unittest.TestCase):
         no=CancellationEvidence("op-target",m.exact_subject,False)
         self.assertIs(admit(m,e,cancellation=no),AdmissionDecision.REJECT)
         yes=CancellationEvidence("op-target",m.exact_subject,True)
-        self.assertIs(admit(m,e,cancellation=yes),AdmissionDecision.ALLOW)
+        self.assertIs(admit(m,e,prior_operation=None,cancellation=yes),AdmissionDecision.ALLOW)
 
 class ImmutabilityTests(unittest.TestCase):
     def test_mutating_original_payload_cannot_change_message_digest(self):
