@@ -287,7 +287,11 @@ def admit(
         if decision is not None:
             return decision
 
-    if prior_operation is not None and message.operation_id == prior_operation.operation_id:
+    if (
+        message.performative in {Performative.EXECUTE, Performative.CANCEL}
+        and prior_operation is not None
+        and message.operation_id == prior_operation.operation_id
+    ):
         if message.idempotency_key != prior_operation.idempotency_key:
             return AdmissionDecision.CONFLICT
         if operation_digest(message) != prior_operation.semantic_digest:
