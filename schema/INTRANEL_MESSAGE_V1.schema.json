@@ -43,8 +43,8 @@
       ]
     },
     "ack_required": {"type": "boolean"},
-    "observed_at": {"type": ["string", "null"]},
-    "expires_at": {"type": ["string", "null"]},
+    "observed_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+    "expires_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
     "idempotency_key": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
     "priority": {"type": "integer", "minimum": 0, "maximum": 4},
     "effect_class": {
@@ -59,20 +59,16 @@
     "provenance": {"type": "array", "items": {"type": "string"}}
   },
   "$defs": {
-    "address": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"
-    },
-    "token": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^\\S+$"
-    }
+    "address": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"},
+    "token": {"type": "string", "minLength": 1, "pattern": "^\\S+$"}
   },
   "allOf": [
     {
       "if": {"properties": {"performative": {"const": "REVIEW"}}, "required": ["performative"]},
-      "then": {"required": ["exact_subject"]}
+      "then": {
+        "required": ["exact_subject"],
+        "properties": {"exact_subject": {"type": "string", "minLength": 1}}
+      }
     },
     {
       "if": {
@@ -82,7 +78,15 @@
         },
         "required": ["performative", "effect_class"]
       },
-      "then": {"required": ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"]}
+      "then": {
+        "required": ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"],
+        "properties": {
+          "operation_id": {"type": "string", "minLength": 1},
+          "idempotency_key": {"type": "string", "minLength": 1},
+          "authority_claim_ref": {"type": "string", "minLength": 1},
+          "exact_subject": {"type": "string", "minLength": 1}
+        }
+      }
     }
   ]
 }
