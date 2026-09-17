@@ -56,6 +56,12 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("offset-aware iso 8601", text)
         self.assertIn("`expires_at` must be later than `observed_at`", text)
 
+    def test_idempotency_requires_atomic_operation_reservation(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("atomic", text)
+        self.assertIn("reserve", text)
+        self.assertIn("operation", text)
+
     def test_hostile_repair_boundaries_are_explicit(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         for phrase in [
