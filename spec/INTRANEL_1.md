@@ -102,7 +102,7 @@ See `SECURITY_PROFILES_V1.md` for profile semantics. V1 still does not implement
 
 ## Cancellation
 
-A `CANCEL` request is itself an operation and therefore has its own `operation_id` and `idempotency_key`. `target_operation_id` names the distinct operation to cancel.
+A `CANCEL` request is itself an operation and therefore has its own `operation_id` and `idempotency_key`. `target_operation_id` names the distinct operation to cancel. The two identities must be distinct; `operation_id == target_operation_id` is a semantic `CONFLICT`.
 
 `CANCEL` also requires `subject`, `exact_subject`, `authority_claim_ref`, and a non-`READ_ONLY` effect class. Receiver admission requires separate `CancellationEvidence` bound to the same `target_operation_id` and `exact_subject` for a not-yet-completed cancellation request:
 
@@ -119,9 +119,11 @@ A `RECEIPT` message must bind `operation_id`, `exact_subject`, and a structured 
 
 `RECEIPT` remains a **receipt claim**. `ALLOW` means the message may be accepted for processing under Intranel admission; it does not make the claimed effect verified. Effect truth still requires the appropriate independent target readback, provenance, or verification mechanism outside the receipt's own assertion.
 
+A receipt may carry the same `operation_id` as the operation it reports, but that is correlation identity, not a request to execute that operation again. `RECEIPT` is therefore not subjected to `EXECUTE`/`CANCEL` duplicate-execution comparison merely because its `operation_id` matches an existing operation record.
+
 ## Time and freshness
 
-`observed_at` and `expires_at`, when present, are offset-aware ISO 8601 timestamps. Naive timestamps are invalid. When both are present, `expires_at` must be later than `observed_at`.
+`observed_at` and `expires_at`, when present, use the RFC 3339 `date-time` subset represented by Draft 2020-12 JSON Schema: full date; `T` or `t`; hour, minute, and second; optional fractional seconds; and `Z`/`z` or an explicit `±HH:MM` offset. Python-only `datetime.fromisoformat` variants outside that syntax are not INTRANEL/1 timestamps. When both timestamps are present, `expires_at` must be later than `observed_at`.
 
 Replay/freshness is receiver evidence. Unknown replay state is `QUARANTINE`; a known replay failure is `REJECT` in the V1 reference admission implementation.
 
@@ -130,6 +132,8 @@ Replay/freshness is receiver evidence. Unknown replay state is `QUARANTINE`; a k
 Packet identity and operation identity are distinct. The Intranel operation digest intentionally excludes legitimate relay/packet metadata such as `message_id`, `actor`, `reply_to`, and security profile. It includes operation semantics such as `target_operation_id`, exact subject, payload, authority reference, constraints, prohibitions, effect class, capabilities, and provenance.
 
 If the same operation/idempotency identity reappears with the same operation semantics and the prior operation is verified complete, the receiver returns `DUPLICATE` and does not re-execute it. If it is known but incomplete, the result is `QUARANTINE`. Conflicting semantics or a different idempotency key produce `CONFLICT`. For mutating operations, duplicate recognition happens only after the current message passes the receiver's trust/authority boundary; it is not an authority bypass or an unauthenticated operation-existence oracle.
+
+For an `EXECUTE` or `CANCEL` that carries an `operation_id`, operation-store lookup is explicit receiver evidence: omitting the `prior_operation` lookup result means the lookup is unresolved and yields `QUARANTINE`; explicit `None` means the receiver checked and found no prior record; an `OperationRecord` means presence was established and exact operation identity, idempotency key, semantic digest, and completion state are checked. A read-only `EXECUTE` with no `operation_id` has no duplicate-operation identity to look up.
 
 ## Receiver decisions
 
@@ -163,24 +167,26 @@ The SHA-256 digest of canonical bytes is content identity only. It is not a sign
 
 ## Resource bounds
 
-V1 validates bounded untrusted semantic values before canonicalization/use:
+V1 validates bounded untrusted semantic values before canonicalization/use. Per-string limits use Unicode code points so they are directly representable by Draft 2020-12 `maxLength`; the canonical whole-message limit remains byte-based:
 
-- address length: 320 characters;
-- token length: 256 characters;
-- governance scalar strings: 4096 UTF-8 bytes;
+- address length: 320 Unicode code points;
+- token length: 256 Unicode code points;
+- governance scalar strings: 4096 Unicode code points;
 - string-list fields: at most 64 items;
 - JSON object/array: at most 256 direct items;
 - JSON nesting depth: at most 24;
 - total JSON semantic nodes: at most 4096;
-- JSON string values: at most 8192 UTF-8 bytes;
-- JSON object keys: at most 256 UTF-8 bytes and printable ASCII;
-- canonical whole message: at most 65536 bytes.
+- JSON string values: at most 8192 Unicode code points;
+- JSON object keys: at most 256 Unicode code points and printable ASCII;
+- canonical whole message: at most 65536 UTF-8 bytes.
 
-These are V1 interoperability/safety bounds, not claims of denial-of-service immunity for every surrounding transport/runtime.
+The whole-message byte bound remains the outer transport/resource ceiling for multibyte Unicode content. These are V1 interoperability/safety bounds, not claims of denial-of-service immunity for every surrounding transport/runtime.
 
-## Schema and parser parity
+## Schema and reference-semantics boundary
 
-`schema/INTRANEL_MESSAGE_V1.schema.json` is Draft 2020-12. The test suite validates a shared valid/invalid corpus through both the Python parser and a real Draft 2020-12 validator so mutating `EXECUTE`, `CANCEL`, `RECEIPT`, exact-subject, numeric-domain, and object-key rules cannot silently diverge.
+`schema/INTRANEL_MESSAGE_V1.schema.json` is Draft 2020-12 and is the structural wire validator for constraints expressible with standard schema keywords. Shared parity tests cover that expressible surface, including protocol/version vocabularies, required/nullability rules, structural `EXECUTE`/`CANCEL`/`RECEIPT` bindings, RFC 3339 timestamp syntax, numeric-domain restrictions, per-string/collection bounds, and printable-ASCII object-key rules.
+
+The reference parser/admission layer additionally enforces semantic or cross-field invariants that standard Draft 2020-12 does not faithfully express here, including `expires_at > observed_at`, the 65,536-byte canonical whole-message ceiling, exact receiver-evidence binding, receiver-owned effect classification, cancellation self-target inequality and cancellability state, and operation-store lookup completeness. Schema acceptance alone never implies receiver admission.
 
 ## Versioning
 
