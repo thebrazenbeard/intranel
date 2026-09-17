@@ -225,9 +225,9 @@ def admit(
 ) -> AdmissionDecision:
     """Return a fail-closed receiver admission decision for one exact message.
 
-    For EXECUTE/CANCEL, omitting prior_operation means the duplicate lookup was
-    not established and therefore quarantines. Passing explicit None means the
-    receiver has confirmed that no prior operation record exists.
+    For an EXECUTE/CANCEL carrying operation identity, omitting
+    prior_operation means the duplicate lookup was not established and
+    quarantines. Passing explicit None means the receiver confirmed absence.
     """
     if (
         prior_operation is not _UNCHECKED_OPERATION
@@ -303,7 +303,8 @@ def admit(
         if decision is not None:
             return decision
 
-    if operation_request:
+    duplicate_lookup_required = operation_request and message.operation_id is not None
+    if duplicate_lookup_required:
         if prior_operation is _UNCHECKED_OPERATION:
             return AdmissionDecision.QUARANTINE
         if isinstance(prior_operation, OperationRecord):
