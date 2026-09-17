@@ -275,6 +275,18 @@ def admit(
         if decision is not None:
             return decision
 
+    # Once identity, effect, and authority checks have passed, a verified-complete
+    # identical operation is already settled. In particular, a retry of a
+    # completed CANCEL must not depend on the target still being cancellable.
+    if prior_operation is not None and message.operation_id == prior_operation.operation_id:
+        if message.idempotency_key != prior_operation.idempotency_key:
+            return AdmissionDecision.CONFLICT
+        if operation_digest(message) != prior_operation.semantic_digest:
+            return AdmissionDecision.CONFLICT
+        if not prior_operation.completed:
+            return AdmissionDecision.QUARANTINE
+        return AdmissionDecision.DUPLICATE
+
     if message.performative is Performative.CANCEL:
         if cancellation is None:
             return AdmissionDecision.QUARANTINE
@@ -286,14 +298,5 @@ def admit(
         decision = _tristate(cancellation.cancellable, AdmissionDecision.REJECT)
         if decision is not None:
             return decision
-
-    if prior_operation is not None and message.operation_id == prior_operation.operation_id:
-        if message.idempotency_key != prior_operation.idempotency_key:
-            return AdmissionDecision.CONFLICT
-        if operation_digest(message) != prior_operation.semantic_digest:
-            return AdmissionDecision.CONFLICT
-        if not prior_operation.completed:
-            return AdmissionDecision.QUARANTINE
-        return AdmissionDecision.DUPLICATE
 
     return AdmissionDecision.ALLOW
