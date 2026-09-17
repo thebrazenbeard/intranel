@@ -1,0 +1,56 @@
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).parents[1]
+
+
+class DocsContractTests(unittest.TestCase):
+    def read(self, relative):
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def test_protocol_spec_names_exact_protocol_and_all_performatives(self):
+        text = self.read("spec/INTRANEL_1.md")
+        self.assertIn("INTRANEL/1", text)
+        for token in ["QUERY", "REPORT", "REQUEST", "EXECUTE", "REVIEW", "ACK", "REJECT", "WAIT", "CONFLICT", "CANCEL", "RECEIPT"]:
+            with self.subTest(token=token):
+                self.assertIn(f"`{token}`", text)
+
+    def test_protocol_spec_forbids_transport_authority_transfer(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("transport does not grant authority", text)
+        self.assertIn("origin", text)
+        self.assertIn("actor", text)
+        self.assertIn("operation_id", text)
+        self.assertIn("idempotency", text)
+
+    def test_security_profiles_are_explicit_and_not_crypto_implementation(self):
+        text = self.read("spec/SECURITY_PROFILES_V1.md")
+        for profile in ["OPEN", "PRIVATE", "SEALED"]:
+            self.assertIn(f"`{profile}`", text)
+        self.assertIn("does not implement cryptography", text.lower())
+        self.assertIn("authority", text.lower())
+
+    def test_bus_profile_preserves_semantic_digest_and_append_only_posture(self):
+        text = self.read("adapters/BUS_PROFILE_V1.md")
+        self.assertIn("chat-communication-bus", text)
+        self.assertIn("semantic_sha256", text)
+        self.assertIn("messages/", text)
+        self.assertIn("append-only", text.lower())
+        self.assertIn("does not grant authority", text.lower())
+
+    def test_readme_states_core_boundaries(self):
+        text = self.read("README.md").lower()
+        self.assertIn("intranel/1", text)
+        self.assertIn("not a chain-of-thought", text)
+        self.assertIn("not an authority", text)
+
+    def test_security_doc_forbids_committing_real_keys(self):
+        text = self.read("SECURITY.md").lower()
+        self.assertIn("do not commit", text)
+        self.assertIn("private keys", text)
+        self.assertIn("credentials", text)
+
+
+if __name__ == "__main__":
+    unittest.main()
