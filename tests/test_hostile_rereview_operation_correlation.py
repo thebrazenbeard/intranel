@@ -94,6 +94,20 @@ def evidence(message):
 
 
 class OperationCorrelationTests(unittest.TestCase):
+    def test_operation_request_without_duplicate_lookup_quarantines(self):
+        execute = execute_message()
+        self.assertIs(
+            admit(execute, evidence(execute)),
+            AdmissionDecision.QUARANTINE,
+        )
+
+    def test_explicit_receiver_confirmed_absence_allows_fresh_operation(self):
+        execute = execute_message()
+        self.assertIs(
+            admit(execute, evidence(execute), prior_operation=None),
+            AdmissionDecision.ALLOW,
+        )
+
     def test_receipt_for_completed_operation_is_not_misclassified_as_duplicate_retry(self):
         execute = execute_message()
         prior = OperationRecord(
@@ -116,7 +130,7 @@ class OperationCorrelationTests(unittest.TestCase):
             cancellable=True,
         )
         self.assertIs(
-            admit(cancel, evidence(cancel), cancellation=cancellation),
+            admit(cancel, evidence(cancel), prior_operation=None, cancellation=cancellation),
             AdmissionDecision.CONFLICT,
         )
 
