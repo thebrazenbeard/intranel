@@ -86,16 +86,16 @@ This cross-field inequality is enforced by the reference admission layer rather 
 
 ## 6. Duplicate-lookup completeness
 
-An operation-bearing request cannot distinguish "no prior operation exists" from "the receiver did not check" merely by receiving `prior_operation=None` as an implicit default. Treating those states as equivalent makes idempotency fail open.
+A request carrying an `operation_id` cannot distinguish "no prior operation exists" from "the receiver did not check" merely by inheriting a default `prior_operation=None`. Treating those states as equivalent makes idempotency fail open.
 
-For `EXECUTE` and `CANCEL` in the V1 reference API:
+For operation-identity-bearing `EXECUTE` and `CANCEL` requests in the V1 reference API:
 
 - omitted `prior_operation` means the duplicate lookup is unverified and yields `QUARANTINE`;
 - explicit `prior_operation=None` means receiver-confirmed absence of a prior operation record and permits normal fresh-operation admission to continue;
 - an `OperationRecord` means receiver-confirmed presence and triggers exact operation-id, idempotency-key, operation-digest, and completion-state checks;
 - an `OperationRecord` for a different operation identity is `CONFLICT` rather than evidence of absence.
 
-Correlation-only messages such as `RECEIPT` are not themselves operation requests and therefore do not require a duplicate-execution lookup solely because they carry the referenced operation's `operation_id`.
+A genuinely read-only `EXECUTE` that carries no `operation_id` has no duplicate-operation identity to look up and therefore does not require this evidence. Correlation-only messages such as `RECEIPT` are not themselves operation requests and likewise do not require a duplicate-execution lookup solely because they carry the referenced operation's `operation_id`.
 
 This distinction is a caller/receiver contract: explicit `None` must only be supplied after the receiver has established absence in its operation store. Intranel V1 does not itself provide a durable operation database.
 
