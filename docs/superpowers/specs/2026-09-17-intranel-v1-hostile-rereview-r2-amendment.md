@@ -88,6 +88,8 @@ This cross-field inequality is enforced by the reference admission layer rather 
 
 A request carrying an `operation_id` cannot distinguish "no prior operation exists" from "the receiver did not check" merely by inheriting a default `prior_operation=None`. Treating those states as equivalent makes idempotency fail open.
 
+For `EXECUTE`, `operation_id` and `idempotency_key` are a pair. A read-only EXECUTE may omit both, but if either field is present the other is required so the operation can be represented consistently in `OperationRecord` and retried deterministically.
+
 For operation-identity-bearing `EXECUTE` and `CANCEL` requests in the V1 reference API:
 
 - omitted `prior_operation` means the duplicate lookup is unverified and yields `QUARANTINE`;
