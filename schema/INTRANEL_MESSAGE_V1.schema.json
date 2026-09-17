@@ -250,13 +250,19 @@
       "type": "string",
       "minLength": 3,
       "maxLength": 320,
-      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"
+      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$",
+      "not": {
+        "pattern": "[^A-Za-z0-9._/:-]"
+      }
     },
     "token": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^\\S+$"
+      "pattern": "^\\S+$",
+      "not": {
+        "pattern": "\\s"
+      }
     },
     "scalarString": {
       "type": "string",
@@ -267,7 +273,10 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^[\\x20-\\x7E]+$"
+      "pattern": "^[\\x20-\\x7E]+$",
+      "not": {
+        "pattern": "[^\\x20-\\x7E]"
+      }
     },
     "stringArray": {
       "type": "array",
