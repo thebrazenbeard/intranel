@@ -68,9 +68,9 @@ class HardeningTests(unittest.TestCase):
 
     def test_cancel_requires_cancellable_target_evidence(self):
         m=parse_message(cancel_mapping()); e=self.good_evidence(m)
-        self.assertIs(admit(m,e),AdmissionDecision.QUARANTINE)
-        self.assertIs(admit(m,e,cancellation=CancellationEvidence("op-hardening",m.exact_subject,False)),AdmissionDecision.REJECT)
-        self.assertIs(admit(m,e,cancellation=CancellationEvidence("op-hardening",m.exact_subject,True)),AdmissionDecision.ALLOW)
+        self.assertIs(admit(m,e,prior_operation=None),AdmissionDecision.QUARANTINE)
+        self.assertIs(admit(m,e,prior_operation=None,cancellation=CancellationEvidence("op-hardening",m.exact_subject,False)),AdmissionDecision.REJECT)
+        self.assertIs(admit(m,e,prior_operation=None,cancellation=CancellationEvidence("op-hardening",m.exact_subject,True)),AdmissionDecision.ALLOW)
 
     def test_payload_is_deeply_immutable_from_input(self):
         raw={"n":[{"x":1}]}; m=parse_message(execute_mapping(payload=raw)); d=content_digest(m); raw["n"][0]["x"]=2
