@@ -8,6 +8,7 @@ from .message import IntranelMessage
 from .types import AdmissionDecision, EffectClass, Performative
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+_UNCHECKED_OPERATION = object()
 _TRISTATE_FIELDS = {
     "origin_authenticated",
     "actor_authenticated",
@@ -219,10 +220,22 @@ def _tristate(
 def admit(
     message: IntranelMessage,
     evidence: ReceiverEvidence,
-    prior_operation: OperationRecord | None = None,
+    prior_operation: OperationRecord | None | object = _UNCHECKED_OPERATION,
     cancellation: CancellationEvidence | None = None,
 ) -> AdmissionDecision:
-    """Return a fail-closed receiver admission decision for one exact message."""
+    """Return a fail-closed receiver admission decision for one exact message.
+
+    For EXECUTE/CANCEL, omitting prior_operation means the duplicate lookup was
+    not established and therefore quarantines. Passing explicit None means the
+    receiver has confirmed that no prior operation record exists.
+    """
+    if (
+        prior_operation is not _UNCHECKED_OPERATION
+        and prior_operation is not None
+        and not isinstance(prior_operation, OperationRecord)
+    ):
+        raise ValueError("prior_operation must be OperationRecord, null, or omitted")
+
     binding = _binding_decision(message, evidence)
     if binding is not None:
         return binding
@@ -260,7 +273,8 @@ def admit(
             return decision
 
     effective_effect = evidence.effective_effect_class
-    if message.performative in {Performative.EXECUTE, Performative.CANCEL}:
+    operation_request = message.performative in {Performative.EXECUTE, Performative.CANCEL}
+    if operation_request:
         if effective_effect is None:
             return AdmissionDecision.QUARANTINE
         if effective_effect is not message.effect_class:
@@ -289,17 +303,18 @@ def admit(
         if decision is not None:
             return decision
 
-    if (
-        message.performative in {Performative.EXECUTE, Performative.CANCEL}
-        and prior_operation is not None
-        and message.operation_id == prior_operation.operation_id
-    ):
-        if message.idempotency_key != prior_operation.idempotency_key:
-            return AdmissionDecision.CONFLICT
-        if operation_digest(message) != prior_operation.semantic_digest:
-            return AdmissionDecision.CONFLICT
-        if not prior_operation.completed:
+    if operation_request:
+        if prior_operation is _UNCHECKED_OPERATION:
             return AdmissionDecision.QUARANTINE
-        return AdmissionDecision.DUPLICATE
+        if isinstance(prior_operation, OperationRecord):
+            if message.operation_id != prior_operation.operation_id:
+                return AdmissionDecision.CONFLICT
+            if message.idempotency_key != prior_operation.idempotency_key:
+                return AdmissionDecision.CONFLICT
+            if operation_digest(message) != prior_operation.semantic_digest:
+                return AdmissionDecision.CONFLICT
+            if not prior_operation.completed:
+                return AdmissionDecision.QUARANTINE
+            return AdmissionDecision.DUPLICATE
 
     return AdmissionDecision.ALLOW
