@@ -19,6 +19,7 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 - bounded canonical UTF-8 JSON and SHA-256 content identity;
 - relay-safe operation-semantic digests and fail-closed duplicate handling;
 - cancellation state/cancellability evidence;
+- completed-operation idempotency that deduplicates an already-completed cancellation without trying to re-cancel its target;
 - receipt claims bound to prior operation/state without self-verifying their effect;
 - frozen interoperability vectors;
 - security-profile and Chat Communication Bus transport specifications.
