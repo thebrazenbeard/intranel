@@ -341,6 +341,46 @@
         "properties": {
           "performative": {
             "const": "EXECUTE"
+          }
+        },
+        "required": [
+          "performative"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "operation_id": {
+                "type": "null"
+              },
+              "idempotency_key": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "required": [
+              "operation_id",
+              "idempotency_key"
+            ],
+            "properties": {
+              "operation_id": {
+                "$ref": "#/$defs/token"
+              },
+              "idempotency_key": {
+                "$ref": "#/$defs/token"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "EXECUTE"
           },
           "effect_class": {
             "enum": [
