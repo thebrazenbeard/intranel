@@ -132,6 +132,15 @@ class AdmissionTests(unittest.TestCase):
         self.assertIs(admit(private, checks), AdmissionDecision.REJECT)
         self.assertIs(admit(sealed, checks), AdmissionDecision.REJECT)
 
+    def test_relay_actor_does_not_inherit_origin_authority(self):
+        relayed = execute_message(actor="radar:relay")
+        checks = self.good_checks().replace(authority_valid=False)
+        self.assertIs(admit(relayed, checks), AdmissionDecision.REJECT)
+
+    def test_known_failed_actor_authentication_rejects(self):
+        checks = self.good_checks().replace(actor_authenticated=False)
+        self.assertIs(admit(query_message(), checks), AdmissionDecision.REJECT)
+
 
 if __name__ == "__main__":
     unittest.main()
