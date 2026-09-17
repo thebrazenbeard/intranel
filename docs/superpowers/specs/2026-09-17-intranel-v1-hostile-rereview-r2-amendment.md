@@ -99,6 +99,19 @@ A genuinely read-only `EXECUTE` that carries no `operation_id` has no duplicate-
 
 This distinction is a caller/receiver contract: explicit `None` must only be supplied after the receiver has established absence in its operation store. Intranel V1 does not itself provide a durable operation database.
 
+## 7. Completed cancellation retry ordering
+
+A verified-complete identical `CANCEL` operation is already settled. After exact-message binding, authentication, receiver-owned effect classification, authority, and static cancellation identity checks pass, a matching completed prior operation returns `DUPLICATE` without requiring the target to still be cancellable at retry time.
+
+The ordering is deliberate:
+
+1. static semantic contradiction such as `operation_id == target_operation_id` -> `CONFLICT`;
+2. explicit duplicate lookup and exact prior-operation comparison;
+3. matching completed operation -> `DUPLICATE`;
+4. only a fresh cancellation request proceeds to current `CancellationEvidence` / cancellability checks.
+
+This prevents time-varying target state from converting an already-completed cancellation retry into a new rejection or from encouraging re-execution.
+
 ## Qualification boundary
 
 The R2 changes are second-order hostile repairs. Frozen regressions demonstrate the defects being targeted, but the R2 exact head still requires fresh complete verification and independent hostile rereview before any qualification state can advance.
