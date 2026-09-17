@@ -48,6 +48,13 @@ class Address:
     namespace: str
     node: str
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.namespace, str) or not isinstance(self.node, str):
+            raise ValueError("address namespace and node must be strings")
+        raw = f"{self.namespace}:{self.node}"
+        if _ADDRESS_RE.fullmatch(raw) is None:
+            raise ValueError(f"invalid Intranel address: {raw!r}")
+
     @classmethod
     def parse(cls, raw: str) -> "Address":
         if not isinstance(raw, str):
