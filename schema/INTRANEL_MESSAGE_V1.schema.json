@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/thebrazenbeard/intranel/schema/INTRANEL_MESSAGE_V1.schema.json",
+  "title": "Intranel Message V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "origin",
+    "actor",
+    "target",
+    "reply_to",
+    "message_id",
+    "conversation_id",
+    "performative",
+    "effect_class",
+    "security_profile"
+  ],
+  "properties": {
+    "protocol": {"const": "INTRANEL/1"},
+    "origin": {"$ref": "#/$defs/address"},
+    "actor": {"$ref": "#/$defs/address"},
+    "target": {"$ref": "#/$defs/address"},
+    "reply_to": {"$ref": "#/$defs/address"},
+    "message_id": {"$ref": "#/$defs/token"},
+    "operation_id": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
+    "parent_message_id": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
+    "conversation_id": {"$ref": "#/$defs/token"},
+    "performative": {
+      "type": "string",
+      "enum": ["QUERY", "REPORT", "REQUEST", "EXECUTE", "REVIEW", "ACK", "REJECT", "WAIT", "CONFLICT", "CANCEL", "RECEIPT"]
+    },
+    "subject": {"type": ["string", "null"]},
+    "exact_subject": {"type": ["string", "null"]},
+    "payload": {},
+    "authority_claim_ref": {"type": ["string", "null"]},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "prohibited_effects": {"type": "array", "items": {"type": "string"}},
+    "expected_response": {
+      "anyOf": [
+        {"type": "string", "enum": ["QUERY", "REPORT", "REQUEST", "EXECUTE", "REVIEW", "ACK", "REJECT", "WAIT", "CONFLICT", "CANCEL", "RECEIPT"]},
+        {"type": "null"}
+      ]
+    },
+    "ack_required": {"type": "boolean"},
+    "observed_at": {"type": ["string", "null"]},
+    "expires_at": {"type": ["string", "null"]},
+    "idempotency_key": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
+    "priority": {"type": "integer", "minimum": 0, "maximum": 4},
+    "effect_class": {
+      "type": "string",
+      "enum": ["READ_ONLY", "REVERSIBLE_MUTATION", "PROTECTED_MUTATION", "IRREVERSIBLE"]
+    },
+    "status": {"type": ["string", "null"]},
+    "error": {"type": ["string", "null"]},
+    "receipt": {"type": ["object", "null"]},
+    "security_profile": {"type": "string", "enum": ["OPEN", "PRIVATE", "SEALED"]},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "provenance": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S+$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"performative": {"const": "REVIEW"}}, "required": ["performative"]},
+      "then": {"required": ["exact_subject"]}
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {"const": "EXECUTE"},
+          "effect_class": {"enum": ["REVERSIBLE_MUTATION", "PROTECTED_MUTATION", "IRREVERSIBLE"]}
+        },
+        "required": ["performative", "effect_class"]
+      },
+      "then": {"required": ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"]}
+    }
+  ]
+}
