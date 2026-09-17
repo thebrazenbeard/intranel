@@ -150,6 +150,21 @@ class IntranelMessage:
     def __post_init__(self) -> None:
         if self.protocol != PROTOCOL:
             raise ValueError(f"unsupported protocol: {self.protocol!r}")
+
+        for field_name in ("origin", "actor", "target", "reply_to"):
+            if not isinstance(getattr(self, field_name), Address):
+                raise ValueError(f"{field_name} must be an Address")
+        if not isinstance(self.performative, Performative):
+            raise ValueError("performative must be a Performative")
+        if not isinstance(self.effect_class, EffectClass):
+            raise ValueError("effect_class must be an EffectClass")
+        if not isinstance(self.security_profile, SecurityProfile):
+            raise ValueError("security_profile must be a SecurityProfile")
+        if self.expected_response is not None and not isinstance(self.expected_response, Performative):
+            raise ValueError("expected_response must be a Performative or null")
+        if not isinstance(self.ack_required, bool):
+            raise ValueError("ack_required must be boolean")
+
         _require_token(self.message_id, "message_id")
         _require_token(self.conversation_id, "conversation_id")
         if self.operation_id is not None:
@@ -158,6 +173,26 @@ class IntranelMessage:
             _require_token(self.parent_message_id, "parent_message_id")
         if self.idempotency_key is not None:
             _require_token(self.idempotency_key, "idempotency_key")
+
+        for field_name in ("subject", "exact_subject", "authority_claim_ref", "status", "error"):
+            _optional_string(getattr(self, field_name), field_name)
+        for field_name in ("constraints", "prohibited_effects", "capabilities", "provenance"):
+            value = getattr(self, field_name)
+            if not isinstance(value, tuple):
+                raise ValueError(f"{field_name} must be an immutable tuple of strings")
+            _tuple_of_strings(value, field_name)
+
+        _validate_json_value(self.payload, "payload")
+        if self.receipt is not None:
+            if not isinstance(self.receipt, Mapping):
+                raise ValueError("receipt must be an object or null")
+            _validate_json_value(self.receipt, "receipt")
+
+        _, observed_dt = _parse_timestamp(self.observed_at, "observed_at")
+        _, expires_dt = _parse_timestamp(self.expires_at, "expires_at")
+        if observed_dt is not None and expires_dt is not None and expires_dt <= observed_dt:
+            raise ValueError("expires_at must be later than observed_at")
+
         if not isinstance(self.priority, int) or isinstance(self.priority, bool) or not 0 <= self.priority <= 4:
             raise ValueError("priority must be an integer from 0 through 4")
 
@@ -177,6 +212,20 @@ class IntranelMessage:
                 raise ValueError("mutating EXECUTE requires authority_claim_ref")
             if self.subject and not self.exact_subject:
                 raise ValueError("mutating EXECUTE with subject requires exact_subject")
+
+        if self.performative is Performative.CANCEL:
+            if self.effect_class is EffectClass.READ_ONLY:
+                raise ValueError("CANCEL must declare a mutation effect_class")
+            if not self.operation_id:
+                raise ValueError("CANCEL requires operation_id")
+            if not self.idempotency_key:
+                raise ValueError("CANCEL requires idempotency_key")
+            if not self.authority_claim_ref:
+                raise ValueError("CANCEL requires authority_claim_ref")
+            if not self.subject:
+                raise ValueError("CANCEL requires subject")
+            if not self.exact_subject:
+                raise ValueError("CANCEL requires exact_subject")
 
     def to_mapping(self) -> dict[str, Any]:
         return {
