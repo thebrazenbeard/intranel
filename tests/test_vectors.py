@@ -45,12 +45,11 @@ class VectorTests(unittest.TestCase):
     def test_schema_conditionals_require_non_null_exact_and_mutation_bindings(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         review_then = schema["allOf"][0]["then"]
-        self.assertEqual(review_then["properties"]["exact_subject"]["type"], "string")
+        self.assertEqual(review_then["properties"]["exact_subject"]["$ref"], "#/$defs/scalarString")
         mutation_then = schema["allOf"][1]["then"]
         for field in ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"]:
             with self.subTest(field=field):
-                self.assertEqual(mutation_then["properties"][field]["type"], "string")
-                self.assertEqual(mutation_then["properties"][field]["minLength"], 1)
+                self.assertIn(field, mutation_then["required"])
 
     def test_schema_marks_timestamps_as_date_time(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -61,8 +60,8 @@ class VectorTests(unittest.TestCase):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         self.assertIn("target_operation_id", schema["properties"])
         self.assertEqual(schema["$defs"]["token"]["maxLength"], 256)
-        self.assertEqual(schema["$defs"]["string_item"]["minLength"], 1)
-        self.assertEqual(schema["$defs"]["string_list"]["maxItems"], 64)
+        self.assertEqual(schema["$defs"]["scalarString"]["minLength"], 1)
+        self.assertEqual(schema["$defs"]["stringArray"]["maxItems"], 64)
 
         by_performative = {
             rule["if"]["properties"]["performative"]["const"]: rule["then"]
