@@ -7,7 +7,7 @@ Disposition: `SOURCE_REVIEW_SELF_PASS_WITH_EXPLICIT_V1_LIMITS`
 
 This is a historical hostile self-review, not independent qualification. The review document was intentionally committed after the exact implementation subject above so it does not self-reference its own commit.
 
-> **Supersession note — 2026-09-17:** This review does **not** describe the current repaired candidate. An independent hostile review of later subject `b7a8c08483a6f7cdce9323b39a83ef86e96e748f` found material trust-boundary defects and returned `FAIL / CHANGES REQUIRED`. Those findings drove the hostile-repair work. The current repaired source candidate is tracked separately in PR #1 and `INTRANEL_V1_CI_DIAGNOSTIC_2026-09-17.md`; do not carry this historical SELF_PASS forward as current qualification.
+> **Supersession note — 2026-09-17:** This review does **not** describe the current repaired candidate. An independent hostile review of later subject `b7a8c08483a6f7cdce9323b39a83ef86e96e748f` found material trust-boundary defects and returned `FAIL / CHANGES REQUIRED`. Those findings drove the hostile-repair work. Current repaired executable source is `9cd1ba4d4da67c42bc9a186818c9229213b6c762`; do not carry this historical SELF_PASS forward as current qualification.
 
 ## Verification evidence
 
