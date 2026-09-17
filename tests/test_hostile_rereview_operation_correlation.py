@@ -48,6 +48,26 @@ def read_only_execute_without_operation_id():
     })
 
 
+def read_only_execute_with_operation_identity(*, idempotency_key=None):
+    raw = {
+        "protocol": "INTRANEL/1",
+        "origin": "vera:primary",
+        "actor": "vera:primary",
+        "target": "vera:lane/bv",
+        "reply_to": "bus:vera-v2",
+        "message_id": "m-read-op",
+        "operation_id": "read-op",
+        "conversation_id": "c-correlation",
+        "performative": "EXECUTE",
+        "payload": {"action": "inspect"},
+        "effect_class": "READ_ONLY",
+        "security_profile": "OPEN",
+    }
+    if idempotency_key is not None:
+        raw["idempotency_key"] = idempotency_key
+    return parse_message(raw)
+
+
 def receipt_message():
     return parse_message({
         "protocol": "INTRANEL/1",
@@ -129,6 +149,27 @@ class OperationCorrelationTests(unittest.TestCase):
         self.assertIs(
             admit(execute, evidence(execute)),
             AdmissionDecision.ALLOW,
+        )
+
+    def test_execute_operation_identity_requires_idempotency_key(self):
+        with self.assertRaisesRegex(ValueError, "idempotency_key"):
+            read_only_execute_with_operation_identity()
+
+    def test_read_only_execute_with_complete_operation_identity_is_recordable(self):
+        execute = read_only_execute_with_operation_identity(idempotency_key="idem-read")
+        self.assertIs(
+            admit(execute, evidence(execute), prior_operation=None),
+            AdmissionDecision.ALLOW,
+        )
+        prior = OperationRecord(
+            operation_id=execute.operation_id or "",
+            idempotency_key=execute.idempotency_key or "",
+            semantic_digest=operation_digest(execute),
+            completed=True,
+        )
+        self.assertIs(
+            admit(execute, evidence(execute), prior_operation=prior),
+            AdmissionDecision.DUPLICATE,
         )
 
     def test_receipt_for_completed_operation_is_not_misclassified_as_duplicate_retry(self):
