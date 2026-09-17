@@ -8,6 +8,7 @@ from .message import IntranelMessage
 from .types import AdmissionDecision, EffectClass, Performative
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+_UNCHECKED_OPERATION = object()
 _TRISTATE_FIELDS = {
     "origin_authenticated",
     "actor_authenticated",
@@ -219,10 +220,22 @@ def _tristate(
 def admit(
     message: IntranelMessage,
     evidence: ReceiverEvidence,
-    prior_operation: OperationRecord | None = None,
+    prior_operation: OperationRecord | None | object = _UNCHECKED_OPERATION,
     cancellation: CancellationEvidence | None = None,
 ) -> AdmissionDecision:
-    """Return a fail-closed receiver admission decision for one exact message."""
+    """Return a fail-closed receiver admission decision for one exact message.
+
+    For an EXECUTE/CANCEL carrying operation identity, omitting
+    prior_operation means the duplicate lookup was not established and
+    quarantines. Passing explicit None means the receiver confirmed absence.
+    """
+    if (
+        prior_operation is not _UNCHECKED_OPERATION
+        and prior_operation is not None
+        and not isinstance(prior_operation, OperationRecord)
+    ):
+        raise ValueError("prior_operation must be OperationRecord, null, or omitted")
+
     binding = _binding_decision(message, evidence)
     if binding is not None:
         return binding
@@ -260,7 +273,8 @@ def admit(
             return decision
 
     effective_effect = evidence.effective_effect_class
-    if message.performative in {Performative.EXECUTE, Performative.CANCEL}:
+    operation_request = message.performative in {Performative.EXECUTE, Performative.CANCEL}
+    if operation_request:
         if effective_effect is None:
             return AdmissionDecision.QUARANTINE
         if effective_effect is not message.effect_class:
@@ -275,17 +289,29 @@ def admit(
         if decision is not None:
             return decision
 
-    # Once identity, effect, and authority checks have passed, a verified-complete
-    # identical operation is already settled. In particular, a retry of a
-    # completed CANCEL must not depend on the target still being cancellable.
-    if prior_operation is not None and message.operation_id == prior_operation.operation_id:
-        if message.idempotency_key != prior_operation.idempotency_key:
-            return AdmissionDecision.CONFLICT
-        if operation_digest(message) != prior_operation.semantic_digest:
-            return AdmissionDecision.CONFLICT
-        if not prior_operation.completed:
+    # Self-targeting is a static semantic contradiction, not a dynamic target-state check.
+    if (
+        message.performative is Performative.CANCEL
+        and message.operation_id == message.target_operation_id
+    ):
+        return AdmissionDecision.CONFLICT
+
+    duplicate_lookup_required = operation_request and message.operation_id is not None
+    if duplicate_lookup_required:
+        if prior_operation is _UNCHECKED_OPERATION:
             return AdmissionDecision.QUARANTINE
-        return AdmissionDecision.DUPLICATE
+        if isinstance(prior_operation, OperationRecord):
+            if message.operation_id != prior_operation.operation_id:
+                return AdmissionDecision.CONFLICT
+            if message.idempotency_key != prior_operation.idempotency_key:
+                return AdmissionDecision.CONFLICT
+            if operation_digest(message) != prior_operation.semantic_digest:
+                return AdmissionDecision.CONFLICT
+            if not prior_operation.completed:
+                return AdmissionDecision.QUARANTINE
+            # A verified-complete identical operation is already settled. A completed
+            # CANCEL retry must not depend on the target still being cancellable now.
+            return AdmissionDecision.DUPLICATE
 
     if message.performative is Performative.CANCEL:
         if cancellation is None:
