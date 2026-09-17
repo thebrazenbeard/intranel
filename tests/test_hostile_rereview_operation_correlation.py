@@ -1,8 +1,14 @@
 import unittest
 
-from intranel.admission import OperationRecord, ReceiverEvidence, admit, operation_digest
+from intranel.admission import (
+    CancellationEvidence,
+    OperationRecord,
+    ReceiverEvidence,
+    admit,
+    operation_digest,
+)
 from intranel.message import parse_message
-from intranel.types import AdmissionDecision, EffectClass
+from intranel.types import AdmissionDecision
 
 
 def execute_message():
@@ -44,14 +50,37 @@ def receipt_message():
     })
 
 
+def cancel_message(*, operation_id="cancel-op", target_operation_id="target-op"):
+    return parse_message({
+        "protocol": "INTRANEL/1",
+        "origin": "vera:primary",
+        "actor": "vera:primary",
+        "target": "vera:lane/bv",
+        "reply_to": "bus:vera-v2",
+        "message_id": "m-cancel",
+        "operation_id": operation_id,
+        "target_operation_id": target_operation_id,
+        "conversation_id": "c-correlation",
+        "performative": "CANCEL",
+        "subject": f"operation:{target_operation_id}",
+        "exact_subject": "receipt:" + "c" * 64,
+        "payload": {"reason": "stop"},
+        "authority_claim_ref": "auth:patrick/example",
+        "idempotency_key": "idem-cancel",
+        "effect_class": "PROTECTED_MUTATION",
+        "security_profile": "OPEN",
+    })
+
+
 def evidence(message):
+    effect = (
+        message.effect_class
+        if message.performative.value in {"EXECUTE", "CANCEL"}
+        else None
+    )
     return ReceiverEvidence.bind(
         message,
-        effective_effect_class=(
-            EffectClass.REVERSIBLE_MUTATION
-            if message.performative.value == "EXECUTE"
-            else None
-        ),
+        effective_effect_class=effect,
         origin_authenticated=True,
         actor_authenticated=True,
         authority_valid=True,
@@ -77,6 +106,18 @@ class OperationCorrelationTests(unittest.TestCase):
         self.assertIs(
             admit(receipt, evidence(receipt), prior_operation=prior),
             AdmissionDecision.ALLOW,
+        )
+
+    def test_cancel_request_cannot_target_its_own_operation_id(self):
+        cancel = cancel_message(operation_id="same-op", target_operation_id="same-op")
+        cancellation = CancellationEvidence(
+            target_operation_id="same-op",
+            exact_subject=cancel.exact_subject or "",
+            cancellable=True,
+        )
+        self.assertIs(
+            admit(cancel, evidence(cancel), cancellation=cancellation),
+            AdmissionDecision.CONFLICT,
         )
 
 
