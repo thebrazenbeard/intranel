@@ -1,6 +1,12 @@
 """Intranel V1 semantic protocol primitives."""
 
-from .admission import OperationRecord, ReceiverChecks, admit, operation_digest
+from .admission import (
+    CancellationEvidence,
+    OperationRecord,
+    ReceiverEvidence,
+    admit,
+    operation_digest,
+)
 from .canonical import canonical_json_bytes, content_digest
 from .message import IntranelMessage, PROTOCOL, parse_message
 from .types import Address, AdmissionDecision, EffectClass, Performative, SecurityProfile
@@ -8,12 +14,13 @@ from .types import Address, AdmissionDecision, EffectClass, Performative, Securi
 __all__ = [
     "Address",
     "AdmissionDecision",
+    "CancellationEvidence",
     "EffectClass",
     "IntranelMessage",
     "OperationRecord",
     "PROTOCOL",
     "Performative",
-    "ReceiverChecks",
+    "ReceiverEvidence",
     "SecurityProfile",
     "admit",
     "canonical_json_bytes",

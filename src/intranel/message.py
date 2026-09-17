@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-import math
 from typing import Any, Mapping
 
+from .jsonvalue import freeze_json, thaw_json
 from .types import Address, EffectClass, Performative, SecurityProfile
 
 PROTOCOL = "INTRANEL/1"
+MAX_TOKEN_LENGTH = 256
+MAX_SCALAR_STRING_BYTES = 4_096
+MAX_LIST_ITEMS = 64
+MAX_MESSAGE_BYTES = 65_536
 
 _FIELDS = {
     "protocol",
@@ -17,6 +21,7 @@ _FIELDS = {
     "reply_to",
     "message_id",
     "operation_id",
+    "target_operation_id",
     "parent_message_id",
     "conversation_id",
     "performative",
@@ -40,7 +45,6 @@ _FIELDS = {
     "capabilities",
     "provenance",
 }
-
 _REQUIRED = {
     "protocol",
     "origin",
@@ -55,9 +59,16 @@ _REQUIRED = {
 }
 
 
-def _require_token(value: str | None, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip() or any(ch.isspace() for ch in value):
-        raise ValueError(f"{field_name} must be a non-empty token without whitespace")
+def _require_token(value: Any, field_name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > MAX_TOKEN_LENGTH
+        or any(ch.isspace() for ch in value)
+    ):
+        raise ValueError(
+            f"{field_name} must be a non-empty bounded token without whitespace"
+        )
     return value
 
 
@@ -66,40 +77,13 @@ def _optional_string(value: Any, field_name: str) -> str | None:
         return None
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field_name} must be a non-empty string or null")
-    return value
-
-
-def _parse_timestamp(value: Any, field_name: str) -> tuple[str | None, datetime | None]:
-    raw = _optional_string(value, field_name)
-    if raw is None:
-        return None, None
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValueError(f"{field_name} must be an offset-aware ISO 8601 timestamp") from exc
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ValueError(f"{field_name} must include a timezone offset")
-    return raw, parsed
-
-
-def _validate_json_value(value: Any, field_name: str) -> None:
-    if value is None or isinstance(value, (str, bool, int)):
-        return
-    if isinstance(value, float):
-        if not math.isfinite(value):
-            raise ValueError(f"{field_name} contains a non-finite number")
-        return
-    if isinstance(value, list):
-        for item in value:
-            _validate_json_value(item, field_name)
-        return
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            if not isinstance(key, str):
-                raise ValueError(f"{field_name} object keys must be strings")
-            _validate_json_value(item, field_name)
-        return
-    raise ValueError(f"{field_name} must be JSON-compatible")
+        encoded = value.encode("utf-8", "strict")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{field_name} contains invalid Unicode") from exc
+    if len(encoded) > MAX_SCALAR_STRING_BYTES:
+        raise ValueError(f"{field_name} exceeds size limit")
+    return value
 
 
 def _tuple_of_strings(value: Any, field_name: str) -> tuple[str, ...]:
@@ -107,12 +91,26 @@ def _tuple_of_strings(value: Any, field_name: str) -> tuple[str, ...]:
         return ()
     if not isinstance(value, (list, tuple)):
         raise ValueError(f"{field_name} must be an array of strings")
-    result: list[str] = []
-    for item in value:
-        if not isinstance(item, str) or not item:
-            raise ValueError(f"{field_name} must contain non-empty strings")
-        result.append(item)
-    return tuple(result)
+    if len(value) > MAX_LIST_ITEMS:
+        raise ValueError(f"{field_name} exceeds collection limit")
+    return tuple(_optional_string(item, field_name) or "" for item in value)
+
+
+def _parse_timestamp(
+    value: Any, field_name: str
+) -> tuple[str | None, datetime | None]:
+    raw = _optional_string(value, field_name)
+    if raw is None:
+        return None, None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"{field_name} must be an offset-aware ISO 8601 timestamp"
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field_name} must include a timezone offset")
+    return raw, parsed
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +136,7 @@ class IntranelMessage:
     observed_at: str | None = None
     expires_at: str | None = None
     idempotency_key: str | None = None
+    target_operation_id: str | None = None
     priority: int = 3
     effect_class: EffectClass = EffectClass.READ_ONLY
     status: str | None = None
@@ -151,49 +150,61 @@ class IntranelMessage:
         if self.protocol != PROTOCOL:
             raise ValueError(f"unsupported protocol: {self.protocol!r}")
 
-        for field_name in ("origin", "actor", "target", "reply_to"):
-            if not isinstance(getattr(self, field_name), Address):
-                raise ValueError(f"{field_name} must be an Address")
+        for name in ("origin", "actor", "target", "reply_to"):
+            if not isinstance(getattr(self, name), Address):
+                raise ValueError(f"{name} must be an Address")
         if not isinstance(self.performative, Performative):
             raise ValueError("performative must be a Performative")
         if not isinstance(self.effect_class, EffectClass):
             raise ValueError("effect_class must be an EffectClass")
         if not isinstance(self.security_profile, SecurityProfile):
             raise ValueError("security_profile must be a SecurityProfile")
-        if self.expected_response is not None and not isinstance(self.expected_response, Performative):
+        if self.expected_response is not None and not isinstance(
+            self.expected_response, Performative
+        ):
             raise ValueError("expected_response must be a Performative or null")
-        if not isinstance(self.ack_required, bool):
+        if type(self.ack_required) is not bool:
             raise ValueError("ack_required must be boolean")
 
         _require_token(self.message_id, "message_id")
         _require_token(self.conversation_id, "conversation_id")
-        if self.operation_id is not None:
-            _require_token(self.operation_id, "operation_id")
-        if self.parent_message_id is not None:
-            _require_token(self.parent_message_id, "parent_message_id")
-        if self.idempotency_key is not None:
-            _require_token(self.idempotency_key, "idempotency_key")
+        for name in (
+            "operation_id",
+            "target_operation_id",
+            "parent_message_id",
+            "idempotency_key",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                _require_token(value, name)
 
-        for field_name in ("subject", "exact_subject", "authority_claim_ref", "status", "error"):
-            _optional_string(getattr(self, field_name), field_name)
-        for field_name in ("constraints", "prohibited_effects", "capabilities", "provenance"):
-            value = getattr(self, field_name)
+        for name in ("subject", "exact_subject", "authority_claim_ref", "status", "error"):
+            _optional_string(getattr(self, name), name)
+        for name in ("constraints", "prohibited_effects", "capabilities", "provenance"):
+            value = getattr(self, name)
             if not isinstance(value, tuple):
-                raise ValueError(f"{field_name} must be an immutable tuple of strings")
-            _tuple_of_strings(value, field_name)
+                raise ValueError(f"{name} must be an immutable tuple of strings")
+            _tuple_of_strings(value, name)
 
-        _validate_json_value(self.payload, "payload")
+        # Freeze semantic JSON immediately so external references cannot alter a
+        # validated message or its content/operation digest later.
+        object.__setattr__(self, "payload", freeze_json(self.payload, "payload"))
         if self.receipt is not None:
-            if not isinstance(self.receipt, Mapping):
+            frozen_receipt = freeze_json(self.receipt, "receipt")
+            if not isinstance(frozen_receipt, Mapping):
                 raise ValueError("receipt must be an object or null")
-            _validate_json_value(self.receipt, "receipt")
+            object.__setattr__(self, "receipt", frozen_receipt)
 
-        _, observed_dt = _parse_timestamp(self.observed_at, "observed_at")
-        _, expires_dt = _parse_timestamp(self.expires_at, "expires_at")
-        if observed_dt is not None and expires_dt is not None and expires_dt <= observed_dt:
+        _, observed = _parse_timestamp(self.observed_at, "observed_at")
+        _, expires = _parse_timestamp(self.expires_at, "expires_at")
+        if observed is not None and expires is not None and expires <= observed:
             raise ValueError("expires_at must be later than observed_at")
 
-        if not isinstance(self.priority, int) or isinstance(self.priority, bool) or not 0 <= self.priority <= 4:
+        if (
+            not isinstance(self.priority, int)
+            or isinstance(self.priority, bool)
+            or not 0 <= self.priority <= 4
+        ):
             raise ValueError("priority must be an integer from 0 through 4")
 
         if self.performative is Performative.REVIEW and not self.exact_subject:
@@ -204,30 +215,48 @@ class IntranelMessage:
             and self.effect_class is not EffectClass.READ_ONLY
         )
         if mutating_execute:
-            if not self.operation_id:
-                raise ValueError("mutating EXECUTE requires operation_id")
-            if not self.idempotency_key:
-                raise ValueError("mutating EXECUTE requires idempotency_key")
-            if not self.authority_claim_ref:
-                raise ValueError("mutating EXECUTE requires authority_claim_ref")
-            if self.subject and not self.exact_subject:
-                raise ValueError("mutating EXECUTE with subject requires exact_subject")
+            for name in (
+                "operation_id",
+                "idempotency_key",
+                "authority_claim_ref",
+                "exact_subject",
+            ):
+                if not getattr(self, name):
+                    raise ValueError(f"mutating EXECUTE requires {name}")
 
         if self.performative is Performative.CANCEL:
             if self.effect_class is EffectClass.READ_ONLY:
                 raise ValueError("CANCEL must declare a mutation effect_class")
+            for name in (
+                "operation_id",
+                "target_operation_id",
+                "idempotency_key",
+                "authority_claim_ref",
+                "subject",
+                "exact_subject",
+            ):
+                if not getattr(self, name):
+                    raise ValueError(f"CANCEL requires {name}")
+
+        # A RECEIPT message is a bound receipt *claim*. Admission/readback must
+        # independently verify its contents before treating it as effect truth.
+        if self.performative is Performative.RECEIPT:
             if not self.operation_id:
-                raise ValueError("CANCEL requires operation_id")
-            if not self.idempotency_key:
-                raise ValueError("CANCEL requires idempotency_key")
-            if not self.authority_claim_ref:
-                raise ValueError("CANCEL requires authority_claim_ref")
-            if not self.subject:
-                raise ValueError("CANCEL requires subject")
+                raise ValueError("RECEIPT requires operation_id")
             if not self.exact_subject:
-                raise ValueError("CANCEL requires exact_subject")
+                raise ValueError("RECEIPT requires exact_subject")
+            if self.receipt is None:
+                raise ValueError("RECEIPT requires receipt")
+
+        # Enforce a whole-message bound after normalization, before untrusted
+        # semantic state can be admitted farther into the system.
+        from .canonical import canonical_json_bytes
+
+        if len(canonical_json_bytes(self)) > MAX_MESSAGE_BYTES:
+            raise ValueError("message exceeds canonical size limit")
 
     def to_mapping(self) -> dict[str, Any]:
+        """Return a fresh mutable wire mapping; internal semantic state stays frozen."""
         return {
             "protocol": self.protocol,
             "origin": str(self.origin),
@@ -236,16 +265,21 @@ class IntranelMessage:
             "reply_to": str(self.reply_to),
             "message_id": self.message_id,
             "operation_id": self.operation_id,
+            "target_operation_id": self.target_operation_id,
             "parent_message_id": self.parent_message_id,
             "conversation_id": self.conversation_id,
             "performative": self.performative.value,
             "subject": self.subject,
             "exact_subject": self.exact_subject,
-            "payload": self.payload,
+            "payload": thaw_json(self.payload),
             "authority_claim_ref": self.authority_claim_ref,
             "constraints": list(self.constraints),
             "prohibited_effects": list(self.prohibited_effects),
-            "expected_response": self.expected_response.value if self.expected_response is not None else None,
+            "expected_response": (
+                self.expected_response.value
+                if self.expected_response is not None
+                else None
+            ),
             "ack_required": self.ack_required,
             "observed_at": self.observed_at,
             "expires_at": self.expires_at,
@@ -254,7 +288,7 @@ class IntranelMessage:
             "effect_class": self.effect_class.value,
             "status": self.status,
             "error": self.error,
-            "receipt": dict(self.receipt) if self.receipt is not None else None,
+            "receipt": thaw_json(self.receipt) if self.receipt is not None else None,
             "security_profile": self.security_profile.value,
             "capabilities": list(self.capabilities),
             "provenance": list(self.provenance),
@@ -272,55 +306,55 @@ def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:
     missing = sorted(_REQUIRED - keys)
     if missing:
         raise ValueError("missing required field(s): " + ", ".join(missing))
-
-    protocol = mapping["protocol"]
-    if protocol != PROTOCOL:
-        raise ValueError(f"unsupported protocol: {protocol!r}")
+    if mapping["protocol"] != PROTOCOL:
+        raise ValueError(f"unsupported protocol: {mapping['protocol']!r}")
 
     try:
         performative = Performative(mapping["performative"])
         effect_class = EffectClass(mapping["effect_class"])
         security_profile = SecurityProfile(mapping["security_profile"])
         expected_raw = mapping.get("expected_response")
-        expected_response = Performative(expected_raw) if expected_raw is not None else None
+        expected_response = (
+            Performative(expected_raw) if expected_raw is not None else None
+        )
     except (TypeError, ValueError) as exc:
         raise ValueError(str(exc)) from exc
 
     ack_required = mapping.get("ack_required", False)
-    if not isinstance(ack_required, bool):
+    if type(ack_required) is not bool:
         raise ValueError("ack_required must be boolean")
+
+    observed_at, observed = _parse_timestamp(mapping.get("observed_at"), "observed_at")
+    expires_at, expires = _parse_timestamp(mapping.get("expires_at"), "expires_at")
+    if observed is not None and expires is not None and expires <= observed:
+        raise ValueError("expires_at must be later than observed_at")
 
     receipt = mapping.get("receipt")
     if receipt is not None and not isinstance(receipt, Mapping):
         raise ValueError("receipt must be an object or null")
-    if receipt is not None:
-        _validate_json_value(receipt, "receipt")
-
-    payload = mapping.get("payload")
-    _validate_json_value(payload, "payload")
-
-    observed_at, observed_dt = _parse_timestamp(mapping.get("observed_at"), "observed_at")
-    expires_at, expires_dt = _parse_timestamp(mapping.get("expires_at"), "expires_at")
-    if observed_dt is not None and expires_dt is not None and expires_dt <= observed_dt:
-        raise ValueError("expires_at must be later than observed_at")
 
     return IntranelMessage(
-        protocol=protocol,
+        protocol=PROTOCOL,
         origin=Address.parse(mapping["origin"]),
         actor=Address.parse(mapping["actor"]),
         target=Address.parse(mapping["target"]),
         reply_to=Address.parse(mapping["reply_to"]),
         message_id=mapping["message_id"],
         operation_id=mapping.get("operation_id"),
+        target_operation_id=mapping.get("target_operation_id"),
         parent_message_id=mapping.get("parent_message_id"),
         conversation_id=mapping["conversation_id"],
         performative=performative,
         subject=_optional_string(mapping.get("subject"), "subject"),
         exact_subject=_optional_string(mapping.get("exact_subject"), "exact_subject"),
-        payload=payload,
-        authority_claim_ref=_optional_string(mapping.get("authority_claim_ref"), "authority_claim_ref"),
+        payload=mapping.get("payload"),
+        authority_claim_ref=_optional_string(
+            mapping.get("authority_claim_ref"), "authority_claim_ref"
+        ),
         constraints=_tuple_of_strings(mapping.get("constraints"), "constraints"),
-        prohibited_effects=_tuple_of_strings(mapping.get("prohibited_effects"), "prohibited_effects"),
+        prohibited_effects=_tuple_of_strings(
+            mapping.get("prohibited_effects"), "prohibited_effects"
+        ),
         expected_response=expected_response,
         ack_required=ack_required,
         observed_at=observed_at,

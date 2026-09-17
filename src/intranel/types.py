@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 
-
-_ADDRESS_RE = re.compile(r"^(?P<namespace>[a-z][a-z0-9_-]*):(?P<node>[A-Za-z0-9][A-Za-z0-9._/-]*)$")
+MAX_ADDRESS_LENGTH = 320
+_ADDRESS_RE = re.compile(
+    r"^(?P<namespace>[a-z][a-z0-9_-]*):(?P<node>[A-Za-z0-9][A-Za-z0-9._/-]*)$"
+)
 
 
 class Performative(str, Enum):
@@ -52,17 +54,17 @@ class Address:
         if not isinstance(self.namespace, str) or not isinstance(self.node, str):
             raise ValueError("address namespace and node must be strings")
         raw = f"{self.namespace}:{self.node}"
-        if _ADDRESS_RE.fullmatch(raw) is None:
+        if len(raw) > MAX_ADDRESS_LENGTH or _ADDRESS_RE.fullmatch(raw) is None:
             raise ValueError(f"invalid Intranel address: {raw!r}")
 
     @classmethod
     def parse(cls, raw: str) -> "Address":
-        if not isinstance(raw, str):
-            raise ValueError("address must be a string")
+        if not isinstance(raw, str) or len(raw) > MAX_ADDRESS_LENGTH:
+            raise ValueError("address must be a bounded string")
         match = _ADDRESS_RE.fullmatch(raw)
         if match is None:
             raise ValueError(f"invalid Intranel address: {raw!r}")
-        return cls(namespace=match.group("namespace"), node=match.group("node"))
+        return cls(match.group("namespace"), match.group("node"))
 
     def __str__(self) -> str:
         return f"{self.namespace}:{self.node}"
