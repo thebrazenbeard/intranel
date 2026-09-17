@@ -41,6 +41,8 @@ A reconstructed executable workspace from current Git branch content was run und
 - `python -m compileall -q src tests` -> exit 0.
 - The exact current schema/docs/vector blobs used in that reconstruction were checked against their Git blob identities; Python/test files were reconstructed from current connector readback for behavioral verification rather than materialized as a native Git checkout.
 
+The follow-up README/protocol documentation commits only document the already-tested completed-CANCEL retry semantics and do not alter executable source.
+
 This is useful behavioral evidence, but it is **not** native CPython 3.12 qualification and it is **not** hosted-CI GREEN evidence.
 
 ## Qualification consequence
