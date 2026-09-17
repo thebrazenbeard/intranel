@@ -289,19 +289,12 @@ def admit(
         if decision is not None:
             return decision
 
-    if message.performative is Performative.CANCEL:
-        if message.operation_id == message.target_operation_id:
-            return AdmissionDecision.CONFLICT
-        if cancellation is None:
-            return AdmissionDecision.QUARANTINE
-        if (
-            cancellation.target_operation_id != message.target_operation_id
-            or cancellation.exact_subject != message.exact_subject
-        ):
-            return AdmissionDecision.CONFLICT
-        decision = _tristate(cancellation.cancellable, AdmissionDecision.REJECT)
-        if decision is not None:
-            return decision
+    # Self-targeting is a static semantic contradiction, not a dynamic target-state check.
+    if (
+        message.performative is Performative.CANCEL
+        and message.operation_id == message.target_operation_id
+    ):
+        return AdmissionDecision.CONFLICT
 
     duplicate_lookup_required = operation_request and message.operation_id is not None
     if duplicate_lookup_required:
@@ -316,6 +309,20 @@ def admit(
                 return AdmissionDecision.CONFLICT
             if not prior_operation.completed:
                 return AdmissionDecision.QUARANTINE
+            # A verified-complete identical operation is already settled. A completed
+            # CANCEL retry must not depend on the target still being cancellable now.
             return AdmissionDecision.DUPLICATE
+
+    if message.performative is Performative.CANCEL:
+        if cancellation is None:
+            return AdmissionDecision.QUARANTINE
+        if (
+            cancellation.target_operation_id != message.target_operation_id
+            or cancellation.exact_subject != message.exact_subject
+        ):
+            return AdmissionDecision.CONFLICT
+        decision = _tristate(cancellation.cancellable, AdmissionDecision.REJECT)
+        if decision is not None:
+            return decision
 
     return AdmissionDecision.ALLOW
