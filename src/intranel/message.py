@@ -9,7 +9,7 @@ from .types import Address, EffectClass, Performative, SecurityProfile
 
 PROTOCOL = "INTRANEL/1"
 MAX_TOKEN_LENGTH = 256
-MAX_SCALAR_STRING_BYTES = 4_096
+MAX_SCALAR_STRING_LENGTH = 4_096
 MAX_LIST_ITEMS = 64
 MAX_MESSAGE_BYTES = 65_536
 
@@ -78,10 +78,10 @@ def _optional_string(value: Any, field_name: str) -> str | None:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field_name} must be a non-empty string or null")
     try:
-        encoded = value.encode("utf-8", "strict")
+        value.encode("utf-8", "strict")
     except UnicodeEncodeError as exc:
         raise ValueError(f"{field_name} contains invalid Unicode") from exc
-    if len(encoded) > MAX_SCALAR_STRING_BYTES:
+    if len(value) > MAX_SCALAR_STRING_LENGTH:
         raise ValueError(f"{field_name} exceeds size limit")
     return value
 
@@ -186,8 +186,6 @@ class IntranelMessage:
                 raise ValueError(f"{name} must be an immutable tuple of strings")
             _tuple_of_strings(value, name)
 
-        # Freeze semantic JSON immediately so external references cannot alter a
-        # validated message or its content/operation digest later.
         object.__setattr__(self, "payload", freeze_json(self.payload, "payload"))
         if self.receipt is not None:
             frozen_receipt = freeze_json(self.receipt, "receipt")
@@ -238,8 +236,6 @@ class IntranelMessage:
                 if not getattr(self, name):
                     raise ValueError(f"CANCEL requires {name}")
 
-        # A RECEIPT message is a bound receipt *claim*. Admission/readback must
-        # independently verify its contents before treating it as effect truth.
         if self.performative is Performative.RECEIPT:
             if not self.operation_id:
                 raise ValueError("RECEIPT requires operation_id")
@@ -248,8 +244,6 @@ class IntranelMessage:
             if self.receipt is None:
                 raise ValueError("RECEIPT requires receipt")
 
-        # Enforce a whole-message bound after normalization, before untrusted
-        # semantic state can be admitted farther into the system.
         from .canonical import canonical_json_bytes
 
         if len(canonical_json_bytes(self)) > MAX_MESSAGE_BYTES:
