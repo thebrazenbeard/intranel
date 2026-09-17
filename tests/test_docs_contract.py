@@ -51,6 +51,11 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("private keys", text)
         self.assertIn("credentials", text)
 
+    def test_timestamp_contract_is_explicit(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("offset-aware iso 8601", text)
+        self.assertIn("`expires_at` must be later than `observed_at`", text)
+
 
 if __name__ == "__main__":
     unittest.main()
