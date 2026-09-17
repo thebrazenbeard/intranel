@@ -276,6 +276,8 @@ def admit(
             return decision
 
     if message.performative is Performative.CANCEL:
+        if message.operation_id == message.target_operation_id:
+            return AdmissionDecision.CONFLICT
         if cancellation is None:
             return AdmissionDecision.QUARANTINE
         if (
