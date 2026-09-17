@@ -8,17 +8,17 @@ MAX_SAFE_INTEGER = 9_007_199_254_740_991
 MAX_JSON_DEPTH = 24
 MAX_COLLECTION_ITEMS = 256
 MAX_TOTAL_NODES = 4_096
-MAX_STRING_BYTES = 8_192
-MAX_KEY_BYTES = 256
+MAX_STRING_LENGTH = 8_192
+MAX_KEY_LENGTH = 256
 
 
 def _check_text(value: str, field_name: str, *, key: bool = False) -> None:
     try:
-        encoded = value.encode("utf-8", "strict")
+        value.encode("utf-8", "strict")
     except UnicodeEncodeError as exc:
         raise ValueError(f"{field_name} contains invalid Unicode") from exc
 
-    if len(encoded) > (MAX_KEY_BYTES if key else MAX_STRING_BYTES):
+    if len(value) > (MAX_KEY_LENGTH if key else MAX_STRING_LENGTH):
         raise ValueError(f"{field_name} exceeds size limit")
 
     if key and (
