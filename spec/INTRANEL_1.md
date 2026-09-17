@@ -69,6 +69,10 @@ A mutating `EXECUTE` requires `operation_id`, `idempotency_key`, `authority_clai
 
 `constraints` are conditions that must remain true. `prohibited_effects` are hard negative boundaries. A receiver must not reinterpret a prohibition as a preference.
 
+## Time and freshness
+
+`observed_at` and `expires_at`, when present, are offset-aware ISO 8601 timestamps. Naive timestamps are invalid. When both are present, `expires_at` must be later than `observed_at`. Expiry and replay handling remain receiver/security checks; a malformed timestamp is a parse failure, while replay/freshness uncertainty is `QUARANTINE`.
+
 ## Idempotency and duplicate operations
 
 Packet identity and operation identity are distinct. The Intranel operation digest intentionally excludes relay/packet metadata such as `message_id`, `actor`, `reply_to`, and security profile.
