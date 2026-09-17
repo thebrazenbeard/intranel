@@ -135,6 +135,39 @@ class IntranelMessage:
             if self.subject and not self.exact_subject:
                 raise ValueError("mutating EXECUTE with subject requires exact_subject")
 
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "protocol": self.protocol,
+            "origin": str(self.origin),
+            "actor": str(self.actor),
+            "target": str(self.target),
+            "reply_to": str(self.reply_to),
+            "message_id": self.message_id,
+            "operation_id": self.operation_id,
+            "parent_message_id": self.parent_message_id,
+            "conversation_id": self.conversation_id,
+            "performative": self.performative.value,
+            "subject": self.subject,
+            "exact_subject": self.exact_subject,
+            "payload": self.payload,
+            "authority_claim_ref": self.authority_claim_ref,
+            "constraints": list(self.constraints),
+            "prohibited_effects": list(self.prohibited_effects),
+            "expected_response": self.expected_response.value if self.expected_response is not None else None,
+            "ack_required": self.ack_required,
+            "observed_at": self.observed_at,
+            "expires_at": self.expires_at,
+            "idempotency_key": self.idempotency_key,
+            "priority": self.priority,
+            "effect_class": self.effect_class.value,
+            "status": self.status,
+            "error": self.error,
+            "receipt": dict(self.receipt) if self.receipt is not None else None,
+            "security_profile": self.security_profile.value,
+            "capabilities": list(self.capabilities),
+            "provenance": list(self.provenance),
+        }
+
 
 def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:
     if not isinstance(mapping, Mapping):
