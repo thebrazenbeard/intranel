@@ -217,6 +217,13 @@ class IntranelMessage:
         if self.performative is Performative.REVIEW and not self.exact_subject:
             raise ValueError("REVIEW requires exact_subject")
 
+        if self.performative is Performative.EXECUTE and (
+            (self.operation_id is None) != (self.idempotency_key is None)
+        ):
+            raise ValueError(
+                "EXECUTE operation_id and idempotency_key must be provided together"
+            )
+
         mutating_execute = (
             self.performative is Performative.EXECUTE
             and self.effect_class is not EffectClass.READ_ONLY
