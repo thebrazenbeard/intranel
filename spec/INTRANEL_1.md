@@ -161,24 +161,24 @@ The SHA-256 digest of canonical bytes is content identity only. It is not a sign
 
 ## Resource bounds
 
-V1 validates bounded untrusted semantic values before canonicalization/use:
+V1 validates bounded untrusted semantic values before canonicalization/use. Per-string limits use Unicode code points so they are directly representable by Draft 2020-12 `maxLength`; the canonical whole-message limit remains byte-based:
 
-- address length: 320 characters;
-- token length: 256 characters;
-- governance scalar strings: 4096 UTF-8 bytes;
+- address length: 320 Unicode code points;
+- token length: 256 Unicode code points;
+- governance scalar strings: 4096 Unicode code points;
 - string-list fields: at most 64 items;
 - JSON object/array: at most 256 direct items;
 - JSON nesting depth: at most 24;
 - total JSON semantic nodes: at most 4096;
-- JSON string values: at most 8192 UTF-8 bytes;
-- JSON object keys: at most 256 UTF-8 bytes and printable ASCII;
-- canonical whole message: at most 65536 bytes.
+- JSON string values: at most 8192 Unicode code points;
+- JSON object keys: at most 256 Unicode code points and printable ASCII;
+- canonical whole message: at most 65536 UTF-8 bytes.
 
-These are V1 interoperability/safety bounds, not claims of denial-of-service immunity for every surrounding transport/runtime.
+The whole-message byte bound remains the outer transport/resource ceiling for multibyte Unicode payloads. These are V1 interoperability/safety bounds, not claims of denial-of-service immunity for every surrounding transport/runtime.
 
 ## Schema and parser parity
 
-`schema/INTRANEL_MESSAGE_V1.schema.json` is Draft 2020-12. The test suite validates a shared valid/invalid corpus through both the Python parser and a real Draft 2020-12 validator so mutating `EXECUTE`, `CANCEL`, `RECEIPT`, exact-subject, numeric-domain, and object-key rules cannot silently diverge.
+`schema/INTRANEL_MESSAGE_V1.schema.json` is Draft 2020-12. The test suite validates a shared valid/invalid corpus through both the Python parser and a real Draft 2020-12 validator so mutating `EXECUTE`, `CANCEL`, `RECEIPT`, exact-subject, numeric-domain, string-length, and object-key rules cannot silently diverge.
 
 ## Versioning
 
