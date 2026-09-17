@@ -57,6 +57,35 @@ class VectorTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["observed_at"]["anyOf"][0]["format"], "date-time")
         self.assertEqual(schema["properties"]["expires_at"]["anyOf"][0]["format"], "date-time")
 
+    def test_schema_tracks_cancel_receipt_and_size_hardening(self):
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        self.assertIn("target_operation_id", schema["properties"])
+        self.assertEqual(schema["$defs"]["token"]["maxLength"], 256)
+        self.assertEqual(schema["$defs"]["string_item"]["minLength"], 1)
+        self.assertEqual(schema["$defs"]["string_list"]["maxItems"], 64)
+
+        by_performative = {
+            rule["if"]["properties"]["performative"]["const"]: rule["then"]
+            for rule in schema["allOf"]
+            if "const" in rule.get("if", {}).get("properties", {}).get("performative", {})
+        }
+        cancel_then = by_performative["CANCEL"]
+        for field in [
+            "operation_id",
+            "target_operation_id",
+            "idempotency_key",
+            "authority_claim_ref",
+            "subject",
+            "exact_subject",
+        ]:
+            self.assertIn(field, cancel_then["required"])
+        self.assertNotIn("READ_ONLY", cancel_then["properties"]["effect_class"]["enum"])
+
+        receipt_then = by_performative["RECEIPT"]
+        for field in ["operation_id", "exact_subject", "receipt"]:
+            self.assertIn(field, receipt_then["required"])
+        self.assertEqual(receipt_then["properties"]["receipt"]["type"], "object")
+
 
 if __name__ == "__main__":
     unittest.main()
