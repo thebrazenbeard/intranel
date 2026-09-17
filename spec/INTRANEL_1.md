@@ -123,7 +123,7 @@ A receipt may carry the same `operation_id` as the operation it reports, but tha
 
 ## Time and freshness
 
-`observed_at` and `expires_at`, when present, use the RFC 3339 `date-time` subset represented by Draft 2020-12 JSON Schema: full date; `T` or `t`; hour, minute, and second; optional fractional seconds; and `Z`/`z` or an explicit `±HH:MM` offset. Python-only `datetime.fromisoformat` variants outside that syntax are not INTRANEL/1 timestamps. When both timestamps are present, `expires_at` must be later than `observed_at`.
+`observed_at` and `expires_at`, when present, use RFC 3339 `date-time`, the offset-aware ISO 8601 profile represented by Draft 2020-12 JSON Schema: full date; `T` or `t`; hour, minute, and second; optional fractional seconds; and `Z`/`z` or an explicit `±HH:MM` offset. Python-only `datetime.fromisoformat` variants outside that syntax are not INTRANEL/1 timestamps. When both timestamps are present, `expires_at` must be later than `observed_at`.
 
 Replay/freshness is receiver evidence. Unknown replay state is `QUARANTINE`; a known replay failure is `REJECT` in the V1 reference admission implementation.
 
@@ -136,6 +136,8 @@ If the same operation/idempotency identity reappears with the same operation sem
 For `EXECUTE`, `operation_id` and `idempotency_key` are paired identity fields: either both are absent/null for a read-only execution with no retry identity, or both are present as tokens. A read-only `EXECUTE` may therefore be operation-bound, but it cannot carry an unrecordable half-identity.
 
 For an `EXECUTE` or `CANCEL` that carries an `operation_id`, operation-store lookup is explicit receiver evidence: omitting the `prior_operation` lookup result means the lookup is unresolved and yields `QUARANTINE`; explicit `None` means the receiver checked and found no prior record; an `OperationRecord` means presence was established and exact operation identity, idempotency key, semantic digest, and completion state are checked. A read-only `EXECUTE` with no `operation_id` has no duplicate-operation identity to look up.
+
+Because `admit()` is a pure decision function, lookup alone does not guarantee at-most-once execution under concurrency. Before dispatching any operation-bearing effect after `ALLOW`, the receiver must atomically reserve that `operation_id`/idempotency identity in its operation store (or use an equivalent compare-and-set transaction) so two concurrent first-seen requests cannot both execute. Intranel V1 does not itself provide the durable operation store or transaction mechanism.
 
 ## Receiver decisions
 
