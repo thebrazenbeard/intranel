@@ -42,6 +42,21 @@ class VectorTests(unittest.TestCase):
             {"QUERY", "REPORT", "REQUEST", "EXECUTE", "REVIEW", "ACK", "REJECT", "WAIT", "CONFLICT", "CANCEL", "RECEIPT"},
         )
 
+    def test_schema_conditionals_require_non_null_exact_and_mutation_bindings(self):
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        review_then = schema["allOf"][0]["then"]
+        self.assertEqual(review_then["properties"]["exact_subject"]["type"], "string")
+        mutation_then = schema["allOf"][1]["then"]
+        for field in ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"]:
+            with self.subTest(field=field):
+                self.assertEqual(mutation_then["properties"][field]["type"], "string")
+                self.assertEqual(mutation_then["properties"][field]["minLength"], 1)
+
+    def test_schema_marks_timestamps_as_date_time(self):
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(schema["properties"]["observed_at"]["anyOf"][0]["format"], "date-time")
+        self.assertEqual(schema["properties"]["expires_at"]["anyOf"][0]["format"], "date-time")
+
 
 if __name__ == "__main__":
     unittest.main()
