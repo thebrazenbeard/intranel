@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import re
 from typing import Any, Mapping
 
 from .jsonvalue import freeze_json, thaw_json
@@ -12,6 +13,9 @@ MAX_TOKEN_LENGTH = 256
 MAX_SCALAR_STRING_LENGTH = 4_096
 MAX_LIST_ITEMS = 64
 MAX_MESSAGE_BYTES = 65_536
+_RFC3339_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
 
 _FIELDS = {
     "protocol",
@@ -102,11 +106,16 @@ def _parse_timestamp(
     raw = _optional_string(value, field_name)
     if raw is None:
         return None, None
+    if _RFC3339_DATETIME_RE.fullmatch(raw) is None:
+        raise ValueError(f"{field_name} must be an RFC 3339 date-time with offset")
+    normalized = raw
+    if raw.endswith(("Z", "z")):
+        normalized = raw[:-1] + "+00:00"
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise ValueError(
-            f"{field_name} must be an offset-aware ISO 8601 timestamp"
+            f"{field_name} must be an RFC 3339 date-time with offset"
         ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include a timezone offset")
