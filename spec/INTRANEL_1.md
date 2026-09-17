@@ -133,6 +133,8 @@ Packet identity and operation identity are distinct. The Intranel operation dige
 
 If the same operation/idempotency identity reappears with the same operation semantics and the prior operation is verified complete, the receiver returns `DUPLICATE` and does not re-execute it. If it is known but incomplete, the result is `QUARANTINE`. Conflicting semantics or a different idempotency key produce `CONFLICT`. For mutating operations, duplicate recognition happens only after the current message passes the receiver's trust/authority boundary; it is not an authority bypass or an unauthenticated operation-existence oracle.
 
+For `EXECUTE`, `operation_id` and `idempotency_key` are paired identity fields: either both are absent/null for a read-only execution with no retry identity, or both are present as tokens. A read-only `EXECUTE` may therefore be operation-bound, but it cannot carry an unrecordable half-identity.
+
 For an `EXECUTE` or `CANCEL` that carries an `operation_id`, operation-store lookup is explicit receiver evidence: omitting the `prior_operation` lookup result means the lookup is unresolved and yields `QUARANTINE`; explicit `None` means the receiver checked and found no prior record; an `OperationRecord` means presence was established and exact operation identity, idempotency key, semantic digest, and completion state are checked. A read-only `EXECUTE` with no `operation_id` has no duplicate-operation identity to look up.
 
 ## Receiver decisions
