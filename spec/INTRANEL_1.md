@@ -104,12 +104,14 @@ See `SECURITY_PROFILES_V1.md` for profile semantics. V1 still does not implement
 
 A `CANCEL` request is itself an operation and therefore has its own `operation_id` and `idempotency_key`. `target_operation_id` names the distinct operation to cancel.
 
-`CANCEL` also requires `subject`, `exact_subject`, `authority_claim_ref`, and a non-`READ_ONLY` effect class. Receiver admission requires separate `CancellationEvidence` bound to the same `target_operation_id` and `exact_subject`:
+`CANCEL` also requires `subject`, `exact_subject`, `authority_claim_ref`, and a non-`READ_ONLY` effect class. Receiver admission requires separate `CancellationEvidence` bound to the same `target_operation_id` and `exact_subject` for a not-yet-completed cancellation request:
 
 - no cancellation evidence or unknown cancellability -> `QUARANTINE`;
 - target/state mismatch -> `CONFLICT`;
 - known non-cancellable/irreversibly-complete target -> `REJECT`;
 - only known cancellable target state may proceed to the normal admission result.
+
+A retry of the **same verified-complete cancellation operation** is different: after exact-message binding, authentication/replay, effect classification, transport security, exact-subject/constraint/prohibition checks, and authority validation succeed, an identical completed prior operation returns `DUPLICATE` without attempting to prove that its target is still cancellable. It must not re-execute or re-cancel the target.
 
 ## Receipt semantics
 
@@ -127,7 +129,7 @@ Replay/freshness is receiver evidence. Unknown replay state is `QUARANTINE`; a k
 
 Packet identity and operation identity are distinct. The Intranel operation digest intentionally excludes legitimate relay/packet metadata such as `message_id`, `actor`, `reply_to`, and security profile. It includes operation semantics such as `target_operation_id`, exact subject, payload, authority reference, constraints, prohibitions, effect class, capabilities, and provenance.
 
-If the same operation/idempotency identity reappears with the same operation semantics and the prior operation is verified complete, the receiver returns `DUPLICATE` and does not re-execute it. If it is known but incomplete, the result is `QUARANTINE`. Conflicting semantics or a different idempotency key produce `CONFLICT`.
+If the same operation/idempotency identity reappears with the same operation semantics and the prior operation is verified complete, the receiver returns `DUPLICATE` and does not re-execute it. If it is known but incomplete, the result is `QUARANTINE`. Conflicting semantics or a different idempotency key produce `CONFLICT`. For mutating operations, duplicate recognition happens only after the current message passes the receiver's trust/authority boundary; it is not an authority bypass or an unauthenticated operation-existence oracle.
 
 ## Receiver decisions
 
