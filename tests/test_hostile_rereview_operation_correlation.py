@@ -32,6 +32,22 @@ def execute_message():
     })
 
 
+def read_only_execute_without_operation_id():
+    return parse_message({
+        "protocol": "INTRANEL/1",
+        "origin": "vera:primary",
+        "actor": "vera:primary",
+        "target": "vera:lane/bv",
+        "reply_to": "bus:vera-v2",
+        "message_id": "m-read",
+        "conversation_id": "c-correlation",
+        "performative": "EXECUTE",
+        "payload": {"action": "inspect"},
+        "effect_class": "READ_ONLY",
+        "security_profile": "OPEN",
+    })
+
+
 def receipt_message():
     return parse_message({
         "protocol": "INTRANEL/1",
@@ -105,6 +121,13 @@ class OperationCorrelationTests(unittest.TestCase):
         execute = execute_message()
         self.assertIs(
             admit(execute, evidence(execute), prior_operation=None),
+            AdmissionDecision.ALLOW,
+        )
+
+    def test_read_only_execute_without_operation_identity_needs_no_duplicate_lookup(self):
+        execute = read_only_execute_without_operation_id()
+        self.assertIs(
+            admit(execute, evidence(execute)),
             AdmissionDecision.ALLOW,
         )
 
