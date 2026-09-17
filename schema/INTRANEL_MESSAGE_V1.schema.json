@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/thebrazenbeard/intranel/schema/INTRANEL_MESSAGE_V1.schema.json",
+  "title": "Intranel Message V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "origin",
+    "actor",
+    "target",
+    "reply_to",
+    "message_id",
+    "conversation_id",
+    "performative",
+    "effect_class",
+    "security_profile"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "INTRANEL/1"
+    },
+    "origin": {
+      "$ref": "#/$defs/address"
+    },
+    "actor": {
+      "$ref": "#/$defs/address"
+    },
+    "target": {
+      "$ref": "#/$defs/address"
+    },
+    "reply_to": {
+      "$ref": "#/$defs/address"
+    },
+    "message_id": {
+      "$ref": "#/$defs/token"
+    },
+    "operation_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target_operation_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parent_message_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "conversation_id": {
+      "$ref": "#/$defs/token"
+    },
+    "performative": {
+      "enum": [
+        "QUERY",
+        "REPORT",
+        "REQUEST",
+        "EXECUTE",
+        "REVIEW",
+        "ACK",
+        "REJECT",
+        "WAIT",
+        "CONFLICT",
+        "CANCEL",
+        "RECEIPT"
+      ]
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "exact_subject": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payload": {
+      "$ref": "#/$defs/jsonValue"
+    },
+    "authority_claim_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "constraints": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "prohibited_effects": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "expected_response": {
+      "anyOf": [
+        {
+          "enum": [
+            "QUERY",
+            "REPORT",
+            "REQUEST",
+            "EXECUTE",
+            "REVIEW",
+            "ACK",
+            "REJECT",
+            "WAIT",
+            "CONFLICT",
+            "CANCEL",
+            "RECEIPT"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ack_required": {
+      "type": "boolean"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "effect_class": {
+      "enum": [
+        "READ_ONLY",
+        "REVERSIBLE_MUTATION",
+        "PROTECTED_MUTATION",
+        "IRREVERSIBLE"
+      ]
+    },
+    "status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "$ref": "#/$defs/asciiKey"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "security_profile": {
+      "enum": [
+        "OPEN",
+        "PRIVATE",
+        "SEALED"
+      ]
+    },
+    "capabilities": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "provenance": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 320,
+      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^\\S+$"
+    },
+    "scalarString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "asciiKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[\\x20-\\x7E]+$"
+    },
+    "stringArray": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/scalarString"
+      }
+    },
+    "jsonValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "maxLength": 8192
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "$ref": "#/$defs/asciiKey"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "REVIEW"
+          }
+        },
+        "required": [
+          "performative"
+        ]
+      },
+      "then": {
+        "required": [
+          "exact_subject"
+        ],
+        "properties": {
+          "exact_subject": {
+            "$ref": "#/$defs/scalarString"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "EXECUTE"
+          },
+          "effect_class": {
+            "enum": [
+              "REVERSIBLE_MUTATION",
+              "PROTECTED_MUTATION",
+              "IRREVERSIBLE"
+            ]
+          }
+        },
+        "required": [
+          "performative",
+          "effect_class"
+        ]
+      },
+      "then": {
+        "required": [
+          "operation_id",
+          "idempotency_key",
+          "authority_claim_ref",
+          "exact_subject"
+        ],
+        "properties": {
+          "operation_id": {
+            "$ref": "#/$defs/token"
+          },
+          "idempotency_key": {
+            "$ref": "#/$defs/token"
+          },
+          "authority_claim_ref": {
+            "$ref": "#/$defs/scalarString"
+          },
+          "exact_subject": {
+            "$ref": "#/$defs/scalarString"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "CANCEL"
+          }
+        },
+        "required": [
+          "performative"
+        ]
+      },
+      "then": {
+        "required": [
+          "operation_id",
+          "target_operation_id",
+          "idempotency_key",
+          "authority_claim_ref",
+          "subject",
+          "exact_subject"
+        ],
+        "properties": {
+          "effect_class": {
+            "enum": [
+              "REVERSIBLE_MUTATION",
+              "PROTECTED_MUTATION",
+              "IRREVERSIBLE"
+            ]
+          },
+          "operation_id": {
+            "$ref": "#/$defs/token"
+          },
+          "target_operation_id": {
+            "$ref": "#/$defs/token"
+          },
+          "idempotency_key": {
+            "$ref": "#/$defs/token"
+          },
+          "authority_claim_ref": {
+            "$ref": "#/$defs/scalarString"
+          },
+          "subject": {
+            "$ref": "#/$defs/scalarString"
+          },
+          "exact_subject": {
+            "$ref": "#/$defs/scalarString"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "RECEIPT"
+          }
+        },
+        "required": [
+          "performative"
+        ]
+      },
+      "then": {
+        "required": [
+          "operation_id",
+          "exact_subject",
+          "receipt"
+        ],
+        "properties": {
+          "operation_id": {
+            "$ref": "#/$defs/token"
+          },
+          "exact_subject": {
+            "$ref": "#/$defs/scalarString"
+          },
+          "receipt": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}
