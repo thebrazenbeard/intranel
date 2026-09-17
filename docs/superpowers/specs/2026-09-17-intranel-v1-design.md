@@ -102,8 +102,10 @@ Governance-significant messages may carry:
 - `subject`: logical object under discussion;
 - `exact_subject`: immutable identifier for the exact version/candidate when exactness matters;
 - `provenance`: source pointers sufficient to locate supporting evidence;
-- `observed_at`: sender-declared observation timestamp;
-- `expires_at`: optional deadline after which the message is stale for action.
+- `observed_at`: sender-declared offset-aware ISO 8601 observation timestamp;
+- `expires_at`: optional offset-aware ISO 8601 deadline after which the message is stale for action.
+
+When both timestamps are present, `expires_at` must be later than `observed_at`. Malformed or naive timestamps are invalid messages. Whether a well-formed message is fresh enough to act on remains a receiver/security check; uncertainty there is `QUARANTINE`, not a guessed success or conflict.
 
 An `EXECUTE` or `REVIEW` message that relies on a mutable external object must bind `exact_subject`. A receiver must not silently substitute a newer or nearby subject.
 
@@ -213,8 +215,8 @@ V1 tests must demonstrate at minimum:
 3. unknown protocol version fails closed;
 4. `EXECUTE` mutation without authority reference is invalid;
 5. mutation without idempotency key is invalid;
-6. stale/exact-subject mismatch produces `CONFLICT`;
-7. authentication uncertainty produces `QUARANTINE`;
+6. exact-subject mismatch produces `CONFLICT`;
+7. authentication or replay/freshness uncertainty produces `QUARANTINE`;
 8. invalid authority produces `REJECT`;
 9. completed duplicate operation produces `DUPLICATE`, not re-execution;
 10. same operation identity with conflicting semantic digest produces `CONFLICT`;
