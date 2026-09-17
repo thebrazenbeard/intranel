@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
+import math
 from typing import Any, Mapping
 
 from .types import Address, EffectClass, Performative, SecurityProfile
@@ -57,6 +59,47 @@ def _require_token(value: str | None, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip() or any(ch.isspace() for ch in value):
         raise ValueError(f"{field_name} must be a non-empty token without whitespace")
     return value
+
+
+def _optional_string(value: Any, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field_name} must be a non-empty string or null")
+    return value
+
+
+def _parse_timestamp(value: Any, field_name: str) -> tuple[str | None, datetime | None]:
+    raw = _optional_string(value, field_name)
+    if raw is None:
+        return None, None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an offset-aware ISO 8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field_name} must include a timezone offset")
+    return raw, parsed
+
+
+def _validate_json_value(value: Any, field_name: str) -> None:
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{field_name} contains a non-finite number")
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_json_value(item, field_name)
+        return
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"{field_name} object keys must be strings")
+            _validate_json_value(item, field_name)
+        return
+    raise ValueError(f"{field_name} must be JSON-compatible")
 
 
 def _tuple_of_strings(value: Any, field_name: str) -> tuple[str, ...]:
@@ -201,6 +244,16 @@ def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:
     receipt = mapping.get("receipt")
     if receipt is not None and not isinstance(receipt, Mapping):
         raise ValueError("receipt must be an object or null")
+    if receipt is not None:
+        _validate_json_value(receipt, "receipt")
+
+    payload = mapping.get("payload")
+    _validate_json_value(payload, "payload")
+
+    observed_at, observed_dt = _parse_timestamp(mapping.get("observed_at"), "observed_at")
+    expires_at, expires_dt = _parse_timestamp(mapping.get("expires_at"), "expires_at")
+    if observed_dt is not None and expires_dt is not None and expires_dt <= observed_dt:
+        raise ValueError("expires_at must be later than observed_at")
 
     return IntranelMessage(
         protocol=protocol,
@@ -213,21 +266,21 @@ def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:
         parent_message_id=mapping.get("parent_message_id"),
         conversation_id=mapping["conversation_id"],
         performative=performative,
-        subject=mapping.get("subject"),
-        exact_subject=mapping.get("exact_subject"),
-        payload=mapping.get("payload"),
-        authority_claim_ref=mapping.get("authority_claim_ref"),
+        subject=_optional_string(mapping.get("subject"), "subject"),
+        exact_subject=_optional_string(mapping.get("exact_subject"), "exact_subject"),
+        payload=payload,
+        authority_claim_ref=_optional_string(mapping.get("authority_claim_ref"), "authority_claim_ref"),
         constraints=_tuple_of_strings(mapping.get("constraints"), "constraints"),
         prohibited_effects=_tuple_of_strings(mapping.get("prohibited_effects"), "prohibited_effects"),
         expected_response=expected_response,
         ack_required=ack_required,
-        observed_at=mapping.get("observed_at"),
-        expires_at=mapping.get("expires_at"),
+        observed_at=observed_at,
+        expires_at=expires_at,
         idempotency_key=mapping.get("idempotency_key"),
         priority=mapping.get("priority", 3),
         effect_class=effect_class,
-        status=mapping.get("status"),
-        error=mapping.get("error"),
+        status=_optional_string(mapping.get("status"), "status"),
+        error=_optional_string(mapping.get("error"), "error"),
         receipt=receipt,
         security_profile=security_profile,
         capabilities=_tuple_of_strings(mapping.get("capabilities"), "capabilities"),
