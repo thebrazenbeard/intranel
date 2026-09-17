@@ -132,5 +132,70 @@ class MessageTests(unittest.TestCase):
             parse_message(mapping)
 
 
+class StrictScalarTests(unittest.TestCase):
+    def base_mapping(self):
+        return {
+            "protocol": "INTRANEL/1",
+            "origin": "vera:primary",
+            "actor": "vera:primary",
+            "target": "vera:lane/bv",
+            "reply_to": "bus:vera-v2",
+            "message_id": "m-strict",
+            "conversation_id": "c-strict",
+            "performative": "QUERY",
+            "effect_class": "READ_ONLY",
+            "security_profile": "OPEN",
+        }
+
+    def test_governance_scalar_fields_reject_non_strings(self):
+        for field in ["subject", "exact_subject", "authority_claim_ref", "observed_at", "expires_at", "status", "error"]:
+            with self.subTest(field=field):
+                mapping = self.base_mapping()
+                mapping[field] = 123
+                with self.assertRaisesRegex(ValueError, field):
+                    parse_message(mapping)
+
+    def test_payload_must_be_json_compatible(self):
+        mapping = self.base_mapping()
+        mapping["payload"] = {"bad": {1, 2}}
+        with self.assertRaisesRegex(ValueError, "payload"):
+            parse_message(mapping)
+
+
+class TimestampTests(unittest.TestCase):
+    def base_mapping(self):
+        return {
+            "protocol": "INTRANEL/1",
+            "origin": "vera:primary",
+            "actor": "vera:primary",
+            "target": "vera:lane/bv",
+            "reply_to": "bus:vera-v2",
+            "message_id": "m-time",
+            "conversation_id": "c-time",
+            "performative": "REPORT",
+            "effect_class": "READ_ONLY",
+            "security_profile": "OPEN",
+        }
+
+    def test_malformed_observed_at_is_rejected(self):
+        mapping = self.base_mapping()
+        mapping["observed_at"] = "not-a-timestamp"
+        with self.assertRaisesRegex(ValueError, "observed_at"):
+            parse_message(mapping)
+
+    def test_naive_expiry_timestamp_is_rejected(self):
+        mapping = self.base_mapping()
+        mapping["expires_at"] = "2026-09-17T20:00:00"
+        with self.assertRaisesRegex(ValueError, "expires_at"):
+            parse_message(mapping)
+
+    def test_expiry_must_be_after_observation_when_both_present(self):
+        mapping = self.base_mapping()
+        mapping["observed_at"] = "2026-09-17T20:30:00Z"
+        mapping["expires_at"] = "2026-09-17T20:29:59Z"
+        with self.assertRaisesRegex(ValueError, "expires_at"):
+            parse_message(mapping)
+
+
 if __name__ == "__main__":
     unittest.main()
