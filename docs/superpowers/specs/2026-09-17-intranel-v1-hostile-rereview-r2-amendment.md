@@ -61,6 +61,7 @@ Reference semantic tests separately cover at least:
 - receiver-owned effect classification;
 - cancellation request operation identity distinct from `target_operation_id`;
 - cancellation state/cancellability evidence;
+- duplicate-operation lookup completeness;
 - duplicate-operation semantics and receipt/report correlation.
 
 A test failure in either layer is a protocol qualification failure for its exact subject; schema acceptance alone never implies admission.
@@ -82,6 +83,21 @@ A `CANCEL` request is a distinct operation from the operation it targets. Conseq
 Equality is a semantic `CONFLICT`. The receiver must reject the self-target relation even if otherwise matching `CancellationEvidence` says the target is cancellable.
 
 This cross-field inequality is enforced by the reference admission layer rather than pretended to be a standard Draft 2020-12 schema constraint.
+
+## 6. Duplicate-lookup completeness
+
+An operation-bearing request cannot distinguish "no prior operation exists" from "the receiver did not check" merely by receiving `prior_operation=None` as an implicit default. Treating those states as equivalent makes idempotency fail open.
+
+For `EXECUTE` and `CANCEL` in the V1 reference API:
+
+- omitted `prior_operation` means the duplicate lookup is unverified and yields `QUARANTINE`;
+- explicit `prior_operation=None` means receiver-confirmed absence of a prior operation record and permits normal fresh-operation admission to continue;
+- an `OperationRecord` means receiver-confirmed presence and triggers exact operation-id, idempotency-key, operation-digest, and completion-state checks;
+- an `OperationRecord` for a different operation identity is `CONFLICT` rather than evidence of absence.
+
+Correlation-only messages such as `RECEIPT` are not themselves operation requests and therefore do not require a duplicate-execution lookup solely because they carry the referenced operation's `operation_id`.
+
+This distinction is a caller/receiver contract: explicit `None` must only be supplied after the receiver has established absence in its operation store. Intranel V1 does not itself provide a durable operation database.
 
 ## Qualification boundary
 
