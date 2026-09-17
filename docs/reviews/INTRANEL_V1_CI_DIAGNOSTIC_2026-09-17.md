@@ -2,7 +2,7 @@
 
 Status: `HOSTED_CI_INFRASTRUCTURE_FAILURE / LOCAL_BEHAVIORAL_GREEN / NATIVE_3_12_UNRESOLVED`
 
-Current repaired protocol/source candidate under rereview: `9cd1ba4d4da67c42bc9a186818c9229213b6c762`.
+Current repaired executable protocol/source candidate under rereview: `9cd1ba4d4da67c42bc9a186818c9229213b6c762`.
 
 ## Hosted Actions evidence
 
@@ -41,7 +41,7 @@ A reconstructed executable workspace from current Git branch content was run und
 - `python -m compileall -q src tests` -> exit 0.
 - The exact current schema/docs/vector blobs used in that reconstruction were checked against their Git blob identities; Python/test files were reconstructed from current connector readback for behavioral verification rather than materialized as a native Git checkout.
 
-The follow-up README/protocol documentation commits only document the already-tested completed-CANCEL retry semantics and do not alter executable source.
+Follow-up documentation commits only describe the already-tested source semantics and explicitly supersede the historical self-review as current qualification evidence; they do not change executable protocol behavior.
 
 This is useful behavioral evidence, but it is **not** native CPython 3.12 qualification and it is **not** hosted-CI GREEN evidence.
 
@@ -49,6 +49,6 @@ This is useful behavioral evidence, but it is **not** native CPython 3.12 qualif
 
 - Hosted CI remains `UNRESOLVED_INFRASTRUCTURE_FAILURE`, not GREEN.
 - Native CPython 3.12 qualification remains unresolved until an executable 3.12 environment is available.
-- Local CPython 3.13.5 behavior is GREEN for 83 tests plus compile verification against the repaired source semantics.
-- The exact current repaired source candidate `9cd1ba4d…` requires fresh independent hostile rereview; prior review dispositions do not automatically carry across the source change.
+- Local CPython 3.13.5 behavior is GREEN for 83 tests plus compile verification against repaired source `9cd1ba4d…`.
+- Exact repaired source `9cd1ba4d…` requires fresh independent hostile rereview; prior review dispositions do not automatically carry across the source change.
 - No merge, deployment, installation, billing mutation, runner provisioning, key operation, provider change, or Bus-topology mutation is authorized or implied by this diagnostic.
