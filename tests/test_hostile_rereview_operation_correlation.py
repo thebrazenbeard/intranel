@@ -145,6 +145,19 @@ class OperationCorrelationTests(unittest.TestCase):
             AdmissionDecision.ALLOW,
         )
 
+    def test_completed_cancel_retry_deduplicates_before_current_target_recheck(self):
+        cancel = cancel_message()
+        prior = OperationRecord(
+            operation_id=cancel.operation_id or "",
+            idempotency_key=cancel.idempotency_key or "",
+            semantic_digest=operation_digest(cancel),
+            completed=True,
+        )
+        self.assertIs(
+            admit(cancel, evidence(cancel), prior_operation=prior),
+            AdmissionDecision.DUPLICATE,
+        )
+
     def test_cancel_request_cannot_target_its_own_operation_id(self):
         cancel = cancel_message(operation_id="same-op", target_operation_id="same-op")
         cancellation = CancellationEvidence(
