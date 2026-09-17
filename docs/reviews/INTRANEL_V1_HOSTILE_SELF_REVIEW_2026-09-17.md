@@ -5,11 +5,13 @@ Base `main`: `ad164ec7408e3f446dc183bf040af5480ad603f2`
 Protocol: `INTRANEL/1`
 Disposition: `SOURCE_REVIEW_SELF_PASS_WITH_EXPLICIT_V1_LIMITS`
 
-This is a hostile self-review, not independent qualification. The review document is intentionally committed after the exact implementation subject above so it does not self-reference its own commit.
+This is a historical hostile self-review, not independent qualification. The review document was intentionally committed after the exact implementation subject above so it does not self-reference its own commit.
+
+> **Supersession note — 2026-09-17:** This review does **not** describe the current repaired candidate. An independent hostile review of later subject `b7a8c08483a6f7cdce9323b39a83ef86e96e748f` found material trust-boundary defects and returned `FAIL / CHANGES REQUIRED`. Those findings drove the hostile-repair work. The current repaired source candidate is tracked separately in PR #1 and `INTRANEL_V1_CI_DIAGNOSTIC_2026-09-17.md`; do not carry this historical SELF_PASS forward as current qualification.
 
 ## Verification evidence
 
-Fresh local verification against the V1 implementation content:
+Fresh local verification against the historical V1 implementation content:
 
 - `PYTHONPATH=src python -m unittest discover -s tests -v` -> **48 tests, 0 failures**.
 - `python -m compileall -q src tests` -> exit 0.
@@ -34,17 +36,17 @@ No merge, deployment, production install, provider mutation, encryption-key crea
 13. **PASS — security profile does not grant authority.** `PRIVATE` and `SEALED` requests with invalid authority still return `REJECT`.
 14. **PASS — relay does not transfer authority.** `test_relay_actor_does_not_inherit_origin_authority` rejects a relayed mutation when receiver-side authority validation fails.
 
-## Additional hostile findings repaired before this review
+## Additional hostile findings repaired before this historical review
 
-- Governance-significant scalar fields previously accepted arbitrary Python values through the dataclass boundary. The parser now restricts them to non-empty string-or-null where applicable.
-- Payload and receipt values now reject non-JSON values, non-string object keys and non-finite numbers.
-- `observed_at` and `expires_at` now require offset-aware ISO 8601 values; naive/malformed timestamps fail parsing and expiry must be later than observation when both exist.
-- JSON Schema conditionals now require non-null binding values for `REVIEW` and mutating `EXECUTE`, rather than merely requiring the key to exist.
-- Duplicate-operation identity uses an operation-semantic digest that excludes legitimate packet/relay metadata such as `message_id`, `actor`, `reply_to` and security profile. That allows relays/retries to deduplicate without allowing semantic mutation under the same operation identity.
+- Governance-significant scalar fields previously accepted arbitrary Python values through the dataclass boundary. The parser restricted them to non-empty string-or-null where applicable.
+- Payload and receipt values rejected non-JSON values, non-string object keys and non-finite numbers.
+- `observed_at` and `expires_at` required offset-aware ISO 8601 values; naive/malformed timestamps failed parsing and expiry had to be later than observation when both were present.
+- JSON Schema conditionals required non-null binding values for `REVIEW` and mutating `EXECUTE`, rather than merely requiring the key to exist.
+- Duplicate-operation identity used an operation-semantic digest that excluded legitimate packet/relay metadata such as `message_id`, `actor`, `reply_to` and security profile.
 
-## Deliberate V1 exclusions
+## Deliberate historical V1 exclusions
 
-The following are **not implemented and are not claimed**:
+The following were **not implemented and were not claimed**:
 
 - production cryptography or key management;
 - binary/compact wire encoding;
@@ -56,6 +58,6 @@ The following are **not implemented and are not claimed**:
 
 These are scope boundaries, not implied completion.
 
-## Review conclusion
+## Historical review conclusion
 
-Within the declared V1 source scope, the implementation satisfies the hostile requirements above and is suitable for a **draft PR / independent review candidate**. This self-review does not authorize merge, deployment, installation, cryptographic trust, or production qualification.
+Within the historical subject `2e0b4bf8…`, this self-review recorded a source-local PASS. Later independent review invalidated any attempt to treat that PASS as current qualification. Current disposition must be read from the exact repaired subject and fresh rereview evidence, not from this file alone.
