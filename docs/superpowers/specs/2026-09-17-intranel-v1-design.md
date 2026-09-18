@@ -192,6 +192,12 @@ The deterministic decisions are:
 
 Unknown governance-critical fields or unknown protocol versions are rejected rather than guessed.
 
+### Semantic defaults before identity
+
+Message identity is based on the parsed/default-normalized semantic object rather than the raw received JSON member set. Missing and explicit defaults are equivalent. V1 normalizes nullable optional fields and `payload` to `null`, collection fields `constraints`/`prohibited_effects`/`capabilities`/`provenance` to `[]`, `ack_required` to `false`, and `priority` to `3` before canonical serialization. Required routing/identity/protocol/effect/security fields have no omission defaults.
+
+This normalization is part of cross-runtime interoperability: hashing raw JSON before these defaults are materialized can produce a different digest and is not the V1 message-identity algorithm.
+
 ## 13. Canonical representation
 
 V1 canonical representation is a restricted UTF-8 JSON subset with:
