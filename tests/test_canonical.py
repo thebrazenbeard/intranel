@@ -15,6 +15,47 @@ class CanonicalTests(unittest.TestCase):
     def test_semantic_change_changes_digest(self):
         self.assertNotEqual(content_digest({"performative": "QUERY"}), content_digest({"performative": "REVIEW"}))
 
+    def test_omitted_defaults_and_explicit_defaults_have_same_identity(self):
+        minimal = {
+            "protocol": "INTRANEL/1",
+            "origin": "vera:primary",
+            "actor": "vera:primary",
+            "target": "vera:lane/bv",
+            "reply_to": "bus:vera-v2",
+            "message_id": "m-default",
+            "conversation_id": "c-default",
+            "performative": "QUERY",
+            "effect_class": "READ_ONLY",
+            "security_profile": "OPEN",
+        }
+        explicit = {
+            **minimal,
+            "operation_id": None,
+            "target_operation_id": None,
+            "parent_message_id": None,
+            "subject": None,
+            "exact_subject": None,
+            "payload": None,
+            "authority_claim_ref": None,
+            "constraints": [],
+            "prohibited_effects": [],
+            "expected_response": None,
+            "ack_required": False,
+            "observed_at": None,
+            "expires_at": None,
+            "idempotency_key": None,
+            "priority": 3,
+            "status": None,
+            "error": None,
+            "receipt": None,
+            "capabilities": [],
+            "provenance": [],
+        }
+        a = parse_message(minimal)
+        b = parse_message(explicit)
+        self.assertEqual(canonical_json_bytes(a), canonical_json_bytes(b))
+        self.assertEqual(content_digest(a), content_digest(b))
+
     def test_utf8_is_not_ascii_escaped(self):
         self.assertEqual(canonical_json_bytes({"label": "é"}), b'{"label":"\xc3\xa9"}')
 
