@@ -36,6 +36,9 @@ INVALID=[
  base(payload={"é":1}),
  base(origin="vera:primary\n"),
  base(message_id="m\n"),
+ base(message_id="m\ufeffx"),
+ base(message_id="m\u0085x"),
+ base(message_id="m-é"),
  base(payload={"bad\n":1}),
 ]
 
