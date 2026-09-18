@@ -5,7 +5,7 @@ import re
 
 from .canonical import content_digest
 from .message import IntranelMessage
-from .types import AdmissionDecision, EffectClass, Performative
+from .types import AdmissionDecision, EffectClass, Performative, is_valid_token
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _UNCHECKED_OPERATION = object()
@@ -130,12 +130,10 @@ class OperationRecord:
     def __post_init__(self) -> None:
         for name in ("operation_id", "idempotency_key"):
             value = getattr(self, name)
-            if (
-                not isinstance(value, str)
-                or not value
-                or any(ch.isspace() for ch in value)
-            ):
-                raise ValueError(f"{name} must be a non-empty token")
+            if not is_valid_token(value):
+                raise ValueError(
+                    f"{name} must be a 1-256 character printable-ASCII token"
+                )
         if _DIGEST_RE.fullmatch(self.semantic_digest or "") is None:
             raise ValueError("semantic_digest must be a lowercase SHA-256 digest")
         if type(self.completed) is not bool:
