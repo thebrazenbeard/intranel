@@ -345,6 +345,8 @@ def parse_json_message(data: str | bytes) -> IntranelMessage:
             object_pairs_hook=_reject_duplicate_json_members,
             parse_constant=_reject_json_constant,
         )
+    except RecursionError as exc:
+        raise ValueError("wire JSON nesting exceeds decoder limit") from exc
     except ValueError as exc:
         message = str(exc)
         if message.startswith("duplicate JSON object member:") or message.startswith(
