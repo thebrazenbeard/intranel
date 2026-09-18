@@ -125,7 +125,7 @@ A receipt may carry the same `operation_id` as the operation it reports, but tha
 
 ## Time and freshness
 
-`observed_at` and `expires_at`, when present, use an **RFC 3339-derived** offset-aware timestamp profile: full date; `T` or `t`; hour, minute, and second in the range `00`–`59`; optional **1-6 fractional digits**; and `Z`/`z` or an explicit `±HH:MM` offset. Leap seconds (`:60`) are **not accepted** in INTRANEL/1. The six-digit ceiling matches the reference semantics' exact microsecond comparison precision, so every accepted fractional value can participate in `expires_at > observed_at` without truncation. Python-only `datetime.fromisoformat` variants outside this syntax are not INTRANEL/1 timestamps. When both timestamps are present, `expires_at` must be later than `observed_at`.
+`observed_at` and `expires_at`, when present, use an **RFC 3339-derived** offset-aware ISO 8601 timestamp profile: full date; `T` or `t`; hour, minute, and second in the range `00`–`59`; optional **1-6 fractional digits**; and `Z`/`z` or an explicit `±HH:MM` offset. Leap seconds (`:60`) are **not accepted** in INTRANEL/1. The six-digit ceiling matches the reference semantics' exact microsecond comparison precision, so every accepted fractional value can participate in `expires_at > observed_at` without truncation. Python-only `datetime.fromisoformat` variants outside this syntax are not INTRANEL/1 timestamps. When both timestamps are present, `expires_at` must be later than `observed_at`.
 
 Replay/freshness is receiver evidence. Unknown replay state is `QUARANTINE`; a known replay failure is `REJECT` in the V1 reference admission implementation.
 
