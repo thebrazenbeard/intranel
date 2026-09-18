@@ -54,10 +54,11 @@ A message has four distinct routing identities:
 
 Relays may change `actor` while preserving `origin`. Relaying never grants the actor the origin's authority and never grants the origin the actor's authority.
 
-A message also has four correlation identities:
+A message also has five correlation identities:
 
 - `message_id`: identity of this packet/message instance;
 - `operation_id`: identity of the requested logical operation across retries or relays;
+- `target_operation_id`: for `CANCEL`, identity of the distinct operation whose cancellation is requested;
 - `parent_message_id`: optional immediate causal parent;
 - `conversation_id`: stable thread/workflow correlation identifier.
 
@@ -93,7 +94,7 @@ V1 has a deliberately small closed vocabulary:
 - `WAIT`: report a real unresolved dependency/frontier;
 - `CONFLICT`: report incompatible evidence, state, subject, or effect claims;
 - `CANCEL`: request cancellation of an operation that has not irreversibly completed;
-- `RECEIPT`: report the verified result/effect status of a prior operation.
+- `RECEIPT`: carry a receipt claim identifying a prior operation/state. Admission of the receipt claim does not prove that the prior operation exists or that the claimed effect is true; effect truth requires independent receiver readback or verification.
 
 The performative says what the message is doing. Natural-language payload, when present, does not override the performative.
 
@@ -109,7 +110,7 @@ Governance-significant messages may carry:
 
 When both timestamps are present, `expires_at` must be later than `observed_at`. Malformed or naive timestamps are invalid messages. Whether a well-formed message is fresh enough to act on remains a receiver/security check; uncertainty there is `QUARANTINE`, not a guessed success or conflict.
 
-An `EXECUTE` or `REVIEW` message that relies on a mutable external object must bind `exact_subject`. A receiver must not silently substitute a newer or nearby subject.
+Every mutating `EXECUTE` requires `exact_subject`, and every `REVIEW` requires `exact_subject`. Other messages that rely on a mutable external object should bind the exact subject needed by their protocol semantics. A receiver must not silently substitute a newer or nearby subject.
 
 ## 8. Authority and effects
 
@@ -127,7 +128,7 @@ For every `EXECUTE` request whose effect class is not `READ_ONLY`, the message m
 - `operation_id`;
 - `idempotency_key`;
 - `authority_claim_ref`;
-- `exact_subject` when an exact mutable target exists.
+- `exact_subject`.
 
 Receiver-side admission independently validates authority and effect admissibility. Intranel transport, syntax validity, authentication, and message confidentiality do not create permission.
 
@@ -146,7 +147,7 @@ A receiver must not reinterpret a prohibition as a preference.
 
 Mutation operations are operation-bound, not packet-bound.
 
-A receiver presented with a previously completed `operation_id`/`idempotency_key` pair must not re-execute the mutation. It should return or reconstruct a `RECEIPT` when the prior effect can be verified.
+A receiver presented with a previously completed `operation_id`/`idempotency_key` pair must not re-execute the mutation. It may return or reconstruct a `RECEIPT` claim when the prior effect can be independently verified, but receipt admission itself does not prove effect truth or operation existence.
 
 A duplicate operation with conflicting semantic content is `CONFLICT`, not a retry.
 
@@ -164,35 +165,42 @@ Security profile selection does not alter message semantics or authority rules.
 
 ## 12. Receiver admission model
 
-The core library accepts externally established receiver checks:
+The core library accepts externally established receiver evidence bound to the exact message, including:
 
 - origin authenticated;
 - actor authenticated;
-- authority valid for the requested scope/effect;
-- exact subject current/valid;
+- receiver-owned effective effect classification;
+- authority valid for the requested scope/effect where authority is required;
+- exact subject current/valid when present;
 - replay fresh;
 - required capabilities supported;
-- operation duplicate status.
+- declared constraints satisfied when present;
+- prohibited effects clear when present;
+- transport security satisfied for the declared security profile;
+- explicit operation-store lookup result for operation-identity-bearing `EXECUTE`/`CANCEL`;
+- bound cancellation target/cancellability evidence for a fresh `CANCEL`.
 
 The deterministic decisions are:
 
-- `ALLOW`: semantically valid and all required checks pass;
+- `ALLOW`: the modeled required checks passed for this exact message/effect; this is not a reservation grant or proof of every downstream invariant;
 - `DUPLICATE`: same verified operation already completed; do not execute again;
-- `REJECT`: known invalid or unauthorized request;
-- `QUARANTINE`: authentication/replay/integrity uncertainty makes the message unsafe to act on;
-- `CONFLICT`: exact-subject mismatch or conflicting duplicate-operation semantics.
+- `REJECT`: known invalid, unsupported, unauthorized, unsafe, or non-cancellable request;
+- `QUARANTINE`: required authentication, replay, authority, effect, constraint, transport, cancellation, operation-store, or integrity evidence is unresolved;
+- `CONFLICT`: message/evidence binding, exact-subject, effect-class, cancellation-target, or duplicate-operation semantics conflict.
 
 Unknown governance-critical fields or unknown protocol versions are rejected rather than guessed.
 
 ## 13. Canonical representation
 
-V1 canonical representation is UTF-8 JSON with:
+V1 canonical representation is a restricted UTF-8 JSON subset with:
 
-- sorted object keys;
+- sorted printable-ASCII object keys;
 - no insignificant whitespace;
 - explicit `null` where a defined nullable field is present;
 - arrays kept in declared order;
-- non-finite numbers forbidden;
+- safe integral numeric values only; integral float inputs normalize to integer form;
+- non-integral floats, NaN, and infinities forbidden;
+- UTF-8 string values with invalid Unicode rejected;
 - unknown fields rejected by the parser;
 - protocol field fixed to `INTRANEL/1`.
 
