@@ -192,6 +192,10 @@ The deterministic decisions are:
 
 Unknown governance-critical fields or unknown protocol versions are rejected rather than guessed.
 
+### Strict raw JSON boundary
+
+The wire decoder rejects ambiguous JSON before semantic parsing: invalid UTF-8, duplicate object member names at any nesting level, non-standard numeric constants, non-object roots, and raw messages above the V1 65536-byte wire ceiling all fail closed. Schema validation occurs only after this raw-wire boundary. This prevents first-key/last-key parser differences from changing authority- or effect-relevant meaning across runtimes.
+
 ### Semantic defaults before identity
 
 Message identity is based on the parsed/default-normalized semantic object rather than the raw received JSON member set. Missing and explicit defaults are equivalent. V1 normalizes nullable optional fields and `payload` to `null`, collection fields `constraints`/`prohibited_effects`/`capabilities`/`provenance` to `[]`, `ack_required` to `false`, and `priority` to `3` before canonical serialization. Required routing/identity/protocol/effect/security fields have no omission defaults.
