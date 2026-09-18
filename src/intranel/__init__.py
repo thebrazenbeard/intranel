@@ -8,7 +8,7 @@ from .admission import (
     operation_digest,
 )
 from .canonical import canonical_json_bytes, content_digest
-from .message import IntranelMessage, PROTOCOL, parse_message
+from .message import IntranelMessage, PROTOCOL, parse_json_message, parse_message
 from .types import Address, AdmissionDecision, EffectClass, Performative, SecurityProfile
 
 __all__ = [
