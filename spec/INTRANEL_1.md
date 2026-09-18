@@ -182,7 +182,7 @@ V1 validates bounded untrusted semantic values before canonicalization/use. Per-
 - total JSON semantic nodes: at most 4096;
 - JSON string values: at most 8192 Unicode code points;
 - JSON object keys: at most 256 Unicode code points and printable ASCII;
-- canonical whole message: at most 65536 UTF-8 bytes.
+- canonical whole message: at most 65536 bytes of UTF-8.
 
 The whole-message byte bound remains the outer transport/resource ceiling for multibyte Unicode content. These are V1 interoperability/safety bounds, not claims of denial-of-service immunity for every surrounding transport/runtime.
 
