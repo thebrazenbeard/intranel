@@ -77,6 +77,13 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("priority", text)
         self.assertIn("missing and explicit defaults", text)
 
+    def test_raw_json_wire_boundary_is_normative(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("raw wire", text)
+        self.assertIn("duplicate json object member", text)
+        self.assertIn("before schema", text)
+        self.assertIn("65536", text)
+
     def test_hostile_repair_boundaries_are_explicit(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         for phrase in [
