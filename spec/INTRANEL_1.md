@@ -162,6 +162,7 @@ A raw wire message is UTF-8 JSON text. The reference `parse_json_message()` boun
 - duplicate JSON object members are rejected at every nesting level before they can collapse into a mapping;
 - non-standard JSON constants such as `NaN`, `Infinity`, and `-Infinity` are rejected;
 - the decoded top-level value must be a JSON object;
+- hostile nesting that exceeds the runtime JSON decoder's safe recursion boundary fails closed through the Intranel validation error boundary;
 - only after those checks does V1 apply structural/schema and semantic message validation.
 
 Duplicate JSON object member handling is therefore not implementation-defined in INTRANEL/1. A transport or implementation that does not call the reference helper must enforce equivalent raw-wire rules before schema validation or `parse_message()`.
