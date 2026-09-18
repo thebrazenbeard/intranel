@@ -70,6 +70,13 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("every mutating `execute` requires `exact_subject`", lower)
         self.assertIn("target_operation_id", text)
 
+    def test_canonical_identity_documents_default_normalization(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("default-normalized semantic form", text)
+        self.assertIn("ack_required", text)
+        self.assertIn("priority", text)
+        self.assertIn("missing and explicit defaults", text)
+
     def test_hostile_repair_boundaries_are_explicit(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         for phrase in [
