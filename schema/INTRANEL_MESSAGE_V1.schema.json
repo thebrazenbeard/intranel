@@ -267,7 +267,10 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^[\\u0021-\\u007E]+$"
+      "pattern": "^[\\u0021-\\u007E]+$",
+      "not": {
+        "pattern": "[^\\u0021-\\u007E]"
+      }
     },
     "scalarString": {
       "type": "string",
