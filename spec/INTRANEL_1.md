@@ -190,7 +190,7 @@ The whole-message byte bound remains the outer transport/resource ceiling for mu
 
 `schema/INTRANEL_MESSAGE_V1.schema.json` is Draft 2020-12 and is the structural wire validator for constraints expressible with standard schema keywords. Shared parity tests cover that expressible surface, including protocol/version vocabularies, required/nullability rules, structural `EXECUTE`/`CANCEL`/`RECEIPT` bindings, RFC 3339 timestamp syntax, numeric-domain restrictions, per-string/collection bounds, and printable-ASCII object-key rules.
 
-The reference parser/admission layer additionally enforces semantic or cross-field invariants that standard Draft 2020-12 does not faithfully express here, including `expires_at > observed_at`, the 65,536-byte canonical whole-message ceiling, exact receiver-evidence binding, receiver-owned effect classification, cancellation self-target inequality and cancellability state, and operation-store lookup completeness. Schema acceptance alone never implies receiver admission.
+The reference parser/admission layer additionally enforces semantic or cross-field invariants that standard Draft 2020-12 does not faithfully express here, including full Gregorian calendar validity for timestamps (for example rejecting February 30 even when a standard schema format checker accepts it), `expires_at > observed_at`, the 65,536-byte canonical whole-message ceiling, exact receiver-evidence binding, receiver-owned effect classification, cancellation self-target inequality and cancellability state, and operation-store lookup completeness. Schema acceptance alone never implies parser or receiver admission.
 
 ## Versioning
 
