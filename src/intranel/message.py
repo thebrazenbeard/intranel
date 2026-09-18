@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import json
 import re
 from typing import Any, Mapping
 
@@ -297,6 +298,62 @@ class IntranelMessage:
             "capabilities": list(self.capabilities),
             "provenance": list(self.provenance),
         }
+
+
+
+def _reject_duplicate_json_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object member: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
+def parse_json_message(data: str | bytes) -> IntranelMessage:
+    """Parse strict UTF-8 JSON text into an INTRANEL/1 semantic message.
+
+    This is the raw wire boundary. Duplicate object members are rejected before
+    they can collapse into a Mapping, and raw input is bounded before JSON parse.
+    """
+    if isinstance(data, bytes):
+        try:
+            text = data.decode("utf-8", "strict")
+        except UnicodeDecodeError as exc:
+            raise ValueError("wire message must be valid UTF-8") from exc
+        raw_size = len(data)
+    elif isinstance(data, str):
+        try:
+            encoded = data.encode("utf-8", "strict")
+        except UnicodeEncodeError as exc:
+            raise ValueError("wire message must be valid UTF-8") from exc
+        text = data
+        raw_size = len(encoded)
+    else:
+        raise ValueError("wire message must be UTF-8 text or bytes")
+
+    if raw_size > MAX_MESSAGE_BYTES:
+        raise ValueError("wire message exceeds size limit")
+
+    try:
+        decoded = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_members,
+            parse_constant=_reject_json_constant,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith("duplicate JSON object member:") or message.startswith(
+            "invalid JSON constant:"
+        ):
+            raise
+        raise ValueError(f"invalid Intranel JSON: {message}") from exc
+
+    return parse_message(decoded)
 
 
 def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:
