@@ -1,6 +1,7 @@
 import json
 import unittest
 
+import intranel
 from intranel.message import MAX_MESSAGE_BYTES, parse_json_message
 
 
@@ -20,6 +21,10 @@ def minimal_mapping():
 
 
 class StrictWireJsonTests(unittest.TestCase):
+    def test_strict_decoder_is_part_of_public_api(self):
+        self.assertIn("parse_json_message", intranel.__all__)
+        self.assertIs(intranel.parse_json_message, parse_json_message)
+
     def test_valid_json_text_and_bytes_parse(self):
         raw = json.dumps(minimal_mapping(), separators=(",", ":"))
         self.assertEqual(parse_json_message(raw).message_id, "wire-1")
