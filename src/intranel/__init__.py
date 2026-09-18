@@ -26,5 +26,6 @@ __all__ = [
     "canonical_json_bytes",
     "content_digest",
     "operation_digest",
+    "parse_json_message",
     "parse_message",
 ]
