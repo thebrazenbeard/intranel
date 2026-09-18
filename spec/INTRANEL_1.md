@@ -153,6 +153,19 @@ Because `admit()` is a pure decision function, lookup alone does not guarantee a
 
 Parsed payload and receipt data are recursively copied and frozen before the message can be used. Mutating the caller's original Python objects after parsing cannot alter the message or its digest. `to_mapping()` returns a fresh deep mutable copy and likewise cannot mutate the validated internal state.
 
+## Raw wire JSON boundary
+
+A raw wire message is UTF-8 JSON text. The reference `parse_json_message()` boundary applies before schema and semantic parsing:
+
+- raw UTF-8 input is limited to 65536 bytes before JSON decode;
+- invalid UTF-8 is rejected;
+- duplicate JSON object members are rejected at every nesting level before they can collapse into a mapping;
+- non-standard JSON constants such as `NaN`, `Infinity`, and `-Infinity` are rejected;
+- the decoded top-level value must be a JSON object;
+- only after those checks does V1 apply structural/schema and semantic message validation.
+
+Duplicate JSON object member handling is therefore not implementation-defined in INTRANEL/1. A transport or implementation that does not call the reference helper must enforce equivalent raw-wire rules before schema validation or `parse_message()`.
+
 ## Semantic default normalization
 
 Canonical message identity is computed from the parsed, **default-normalized semantic form**, not from the raw JSON object exactly as received. Missing and explicit defaults therefore describe the same semantic message and produce the same canonical bytes/content digest.
