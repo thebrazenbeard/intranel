@@ -62,6 +62,14 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("reserve", text)
         self.assertIn("operation", text)
 
+    def test_architecture_rationale_matches_receipt_and_subject_semantics(self):
+        text = self.read("docs/superpowers/specs/2026-09-17-intranel-v1-design.md")
+        lower = text.lower()
+        self.assertIn("receipt claim", lower)
+        self.assertIn("does not prove", lower)
+        self.assertIn("every mutating `execute` requires `exact_subject`", lower)
+        self.assertIn("target_operation_id", text)
+
     def test_hostile_repair_boundaries_are_explicit(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         for phrase in [
