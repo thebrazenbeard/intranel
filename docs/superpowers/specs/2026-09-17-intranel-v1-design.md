@@ -110,7 +110,7 @@ Governance-significant messages may carry:
 - `observed_at`: sender-declared offset-aware ISO 8601 observation timestamp;
 - `expires_at`: optional offset-aware ISO 8601 deadline after which the message is stale for action.
 
-When both timestamps are present, `expires_at` must be later than `observed_at`. Malformed or naive timestamps are invalid messages. Whether a well-formed message is fresh enough to act on remains a receiver/security check; uncertainty there is `QUARANTINE`, not a guessed success or conflict.
+When both timestamps are present, `expires_at` must be later than `observed_at`. INTRANEL/1 uses an RFC 3339-derived timestamp profile with optional 1-6 fractional digits and leap seconds not accepted; the precision ceiling matches the reference implementation's exact microsecond comparison semantics. Malformed or naive timestamps are invalid messages. Whether a well-formed message is fresh enough to act on remains a receiver/security check; uncertainty there is `QUARANTINE`, not a guessed success or conflict.
 
 Every mutating `EXECUTE` requires `exact_subject`, and every `REVIEW` requires `exact_subject`. Other messages that rely on a mutable external object should bind the exact subject needed by their protocol semantics. A receiver must not silently substitute a newer or nearby subject.
 
