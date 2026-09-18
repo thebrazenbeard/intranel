@@ -56,6 +56,13 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("offset-aware iso 8601", text)
         self.assertIn("`expires_at` must be later than `observed_at`", text)
 
+    def test_timestamp_profile_documents_precision_and_leap_second_boundary(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("1-6 fractional digits", text)
+        self.assertIn("rfc 3339-derived", text)
+        self.assertIn("leap seconds", text)
+        self.assertIn("not accepted", text)
+
     def test_idempotency_requires_atomic_operation_reservation(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         self.assertIn("atomic", text)
