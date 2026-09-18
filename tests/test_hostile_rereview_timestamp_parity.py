@@ -49,6 +49,21 @@ class TimestampParityTests(unittest.TestCase):
     def test_lowercase_z_is_accepted_by_both(self):
         self.assert_parser_schema_agree("2026-09-17T20:30:00z")
 
+    def test_out_of_range_time_and_offset_are_rejected_by_both(self):
+        for value in [
+            "2026-09-17T24:00:00Z",
+            "2026-09-17T20:30:60Z",
+            "2026-09-17T20:30:00+24:00",
+        ]:
+            with self.subTest(value=value):
+                self.assert_parser_schema_agree(value)
+
+    def test_calendar_invalid_date_is_reference_parser_semantic(self):
+        raw = base_message("2026-02-30T20:30:00Z")
+        self.assertEqual(list(VALIDATOR.iter_errors(raw)), [])
+        with self.assertRaises(ValueError):
+            parse_message(raw)
+
 
 if __name__ == "__main__":
     unittest.main()
