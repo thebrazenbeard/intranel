@@ -64,6 +64,8 @@ A message also has five correlation identities:
 
 Two different `message_id` values may carry the same `operation_id`. Receivers must be able to recognize that as a retry/relay of one operation rather than permission to repeat a mutation.
 
+Correlation/operation token fields use a deliberately language-neutral printable-ASCII grammar (`U+0021`-`U+007E`, 1-256 characters). Human/Unicode material remains available in semantic text fields and JSON payload values; identifiers do not depend on runtime-specific Unicode whitespace definitions.
+
 ## 5. Addressing
 
 Addresses are namespaced strings with two components:
