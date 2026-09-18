@@ -58,6 +58,24 @@ class TimestampParityTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assert_parser_schema_agree(value)
 
+    def test_fractional_seconds_are_limited_to_six_digits(self):
+        for value in [
+            "2026-09-18T00:00:00.0000001Z",
+            "2026-09-18T00:00:00.1234567+00:00",
+        ]:
+            raw = base_message(value)
+            self.assertNotEqual(list(VALIDATOR.iter_errors(raw)), [], value)
+            with self.assertRaises(ValueError):
+                parse_message(raw)
+
+    def test_six_digit_fractional_ordering_is_exact(self):
+        raw = base_message("2026-09-18T00:00:00.000001Z")
+        raw["expires_at"] = "2026-09-18T00:00:00.000002Z"
+        self.assertEqual(list(VALIDATOR.iter_errors(raw)), [])
+        parsed = parse_message(raw)
+        self.assertEqual(parsed.observed_at, "2026-09-18T00:00:00.000001Z")
+        self.assertEqual(parsed.expires_at, "2026-09-18T00:00:00.000002Z")
+
     def test_calendar_invalid_date_is_reference_parser_semantic(self):
         raw = base_message("2026-02-30T20:30:00Z")
         self.assertEqual(list(VALIDATOR.iter_errors(raw)), [])
