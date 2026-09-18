@@ -6,10 +6,9 @@ import re
 from typing import Any, Mapping
 
 from .jsonvalue import freeze_json, thaw_json
-from .types import Address, EffectClass, Performative, SecurityProfile
+from .types import Address, EffectClass, Performative, SecurityProfile, is_valid_token
 
 PROTOCOL = "INTRANEL/1"
-MAX_TOKEN_LENGTH = 256
 MAX_SCALAR_STRING_LENGTH = 4_096
 MAX_LIST_ITEMS = 64
 MAX_MESSAGE_BYTES = 65_536
@@ -64,14 +63,9 @@ _REQUIRED = {
 
 
 def _require_token(value: Any, field_name: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > MAX_TOKEN_LENGTH
-        or any(ch.isspace() for ch in value)
-    ):
+    if not is_valid_token(value):
         raise ValueError(
-            f"{field_name} must be a non-empty bounded token without whitespace"
+            f"{field_name} must be a 1-256 character printable-ASCII token"
         )
     return value
 
