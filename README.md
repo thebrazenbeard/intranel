@@ -9,6 +9,7 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 ## V1 contains
 
 - strict `INTRANEL/1` message parsing and Draft 2020-12 schema parity tests;
+- strict raw UTF-8 JSON decoding with duplicate-member rejection before schema/semantic parsing;
 - namespaced addressing with distinct `origin`, `actor`, `target`, and `reply_to`;
 - closed performative/effect/security vocabularies;
 - packet identity separate from logical operation and cancellation-target identity;
