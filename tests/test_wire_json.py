@@ -65,6 +65,19 @@ class StrictWireJsonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "wire message exceeds"):
             parse_json_message(" " * (MAX_MESSAGE_BYTES + 1))
 
+    def test_extreme_nesting_fails_through_validation_boundary(self):
+        depth = 5_000
+        payload = "[" * depth + "0" + "]" * depth
+        base = minimal_mapping()
+        prefix = json.dumps(
+            {k: v for k, v in base.items() if k != "security_profile"},
+            separators=(",", ":"),
+        )[:-1]
+        raw = prefix + ',"payload":' + payload + ',"security_profile":"OPEN"}'
+        self.assertLess(len(raw.encode("utf-8")), MAX_MESSAGE_BYTES)
+        with self.assertRaisesRegex(ValueError, "nesting"):
+            parse_json_message(raw)
+
 
 if __name__ == "__main__":
     unittest.main()
