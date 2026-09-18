@@ -31,6 +31,8 @@ Addresses use `<namespace>:<node>`, for example `vera:primary`, `vera:lane/bv`, 
 
 A new `message_id` with the same verified `operation_id` is not permission to repeat a mutation. Idempotency is operation-bound.
 
+Identity-token fields (`message_id`, operation IDs, `parent_message_id`, `conversation_id`, and `idempotency_key`) use 1-256 printable ASCII characters (`U+0021` through `U+007E`). Unicode text belongs in semantic scalar fields or JSON payload values, not in operation/correlation tokens.
+
 ## Performatives
 
 The performative is authoritative for message intent; payload prose cannot silently override it.
@@ -174,7 +176,7 @@ The SHA-256 digest of canonical bytes is content identity only. It is not a sign
 V1 validates bounded untrusted semantic values before canonicalization/use. Per-string limits use Unicode code points so they are directly representable by Draft 2020-12 `maxLength`; the canonical whole-message limit remains byte-based:
 
 - address length: 320 Unicode code points;
-- token length: 256 Unicode code points;
+- identity tokens: 1-256 printable ASCII code points (`U+0021` through `U+007E`);
 - governance scalar strings: 4096 Unicode code points;
 - string-list fields: at most 64 items;
 - JSON object/array: at most 256 direct items;
