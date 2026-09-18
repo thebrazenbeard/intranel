@@ -153,6 +153,22 @@ Because `admit()` is a pure decision function, lookup alone does not guarantee a
 
 Parsed payload and receipt data are recursively copied and frozen before the message can be used. Mutating the caller's original Python objects after parsing cannot alter the message or its digest. `to_mapping()` returns a fresh deep mutable copy and likewise cannot mutate the validated internal state.
 
+## Semantic default normalization
+
+Canonical message identity is computed from the parsed, **default-normalized semantic form**, not from the raw JSON object exactly as received. Missing and explicit defaults therefore describe the same semantic message and produce the same canonical bytes/content digest.
+
+For a syntactically valid V1 message, omitted optional fields normalize as follows before canonical serialization:
+
+- `operation_id`, `target_operation_id`, `parent_message_id`, `subject`, `exact_subject`, `authority_claim_ref`, `expected_response`, `observed_at`, `expires_at`, `idempotency_key`, `status`, `error`, and `receipt` -> `null`;
+- `payload` -> `null`;
+- `constraints`, `prohibited_effects`, `capabilities`, and `provenance` -> `[]`;
+- `ack_required` -> `false`;
+- `priority` -> `3`.
+
+The required wire fields `protocol`, `origin`, `actor`, `target`, `reply_to`, `message_id`, `conversation_id`, `performative`, `effect_class`, and `security_profile` do not have omission defaults and must be present.
+
+Independent implementations must apply these semantic defaults before computing canonical message bytes or message content identity. Hashing a schema-valid raw object before default normalization is not INTRANEL/1 canonical message hashing.
+
 ## Canonical representation
 
 V1 canonical form is a deliberately restricted RFC-8785-compatible JSON subset so independent runtimes do not have to reproduce Python-specific floating-point serialization.
