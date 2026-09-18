@@ -14,7 +14,7 @@ MAX_SCALAR_STRING_LENGTH = 4_096
 MAX_LIST_ITEMS = 64
 MAX_MESSAGE_BYTES = 65_536
 _RFC3339_DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:[Zz]|[+-]\d{2}:\d{2})$"
 )
 
 _FIELDS = {
@@ -102,7 +102,7 @@ def _parse_timestamp(
     if raw is None:
         return None, None
     if _RFC3339_DATETIME_RE.fullmatch(raw) is None:
-        raise ValueError(f"{field_name} must be an RFC 3339 date-time with offset")
+        raise ValueError(f"{field_name} must be an INTRANEL/1 RFC 3339-derived date-time with 1-6 fractional digits and offset")
     normalized = raw
     if raw.endswith(("Z", "z")):
         normalized = raw[:-1] + "+00:00"
@@ -110,7 +110,7 @@ def _parse_timestamp(
         parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise ValueError(
-            f"{field_name} must be an RFC 3339 date-time with offset"
+            f"{field_name} must be an INTRANEL/1 RFC 3339-derived date-time with 1-6 fractional digits and offset"
         ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include a timezone offset")
