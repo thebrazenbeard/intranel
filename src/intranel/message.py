@@ -2,16 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import json
+import re
 from typing import Any, Mapping
 
 from .jsonvalue import freeze_json, thaw_json
-from .types import Address, EffectClass, Performative, SecurityProfile
+from .types import Address, EffectClass, Performative, SecurityProfile, is_valid_token
 
 PROTOCOL = "INTRANEL/1"
-MAX_TOKEN_LENGTH = 256
-MAX_SCALAR_STRING_BYTES = 4_096
+MAX_SCALAR_STRING_LENGTH = 4_096
 MAX_LIST_ITEMS = 64
 MAX_MESSAGE_BYTES = 65_536
+_RFC3339_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
 
 _FIELDS = {
     "protocol",
@@ -60,14 +64,9 @@ _REQUIRED = {
 
 
 def _require_token(value: Any, field_name: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > MAX_TOKEN_LENGTH
-        or any(ch.isspace() for ch in value)
-    ):
+    if not is_valid_token(value):
         raise ValueError(
-            f"{field_name} must be a non-empty bounded token without whitespace"
+            f"{field_name} must be a 1-256 character printable-ASCII token"
         )
     return value
 
@@ -78,10 +77,10 @@ def _optional_string(value: Any, field_name: str) -> str | None:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field_name} must be a non-empty string or null")
     try:
-        encoded = value.encode("utf-8", "strict")
+        value.encode("utf-8", "strict")
     except UnicodeEncodeError as exc:
         raise ValueError(f"{field_name} contains invalid Unicode") from exc
-    if len(encoded) > MAX_SCALAR_STRING_BYTES:
+    if len(value) > MAX_SCALAR_STRING_LENGTH:
         raise ValueError(f"{field_name} exceeds size limit")
     return value
 
@@ -102,11 +101,16 @@ def _parse_timestamp(
     raw = _optional_string(value, field_name)
     if raw is None:
         return None, None
+    if _RFC3339_DATETIME_RE.fullmatch(raw) is None:
+        raise ValueError(f"{field_name} must be an INTRANEL/1 RFC 3339-derived date-time with 1-6 fractional digits and offset")
+    normalized = raw
+    if raw.endswith(("Z", "z")):
+        normalized = raw[:-1] + "+00:00"
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise ValueError(
-            f"{field_name} must be an offset-aware ISO 8601 timestamp"
+            f"{field_name} must be an INTRANEL/1 RFC 3339-derived date-time with 1-6 fractional digits and offset"
         ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include a timezone offset")
@@ -186,8 +190,6 @@ class IntranelMessage:
                 raise ValueError(f"{name} must be an immutable tuple of strings")
             _tuple_of_strings(value, name)
 
-        # Freeze semantic JSON immediately so external references cannot alter a
-        # validated message or its content/operation digest later.
         object.__setattr__(self, "payload", freeze_json(self.payload, "payload"))
         if self.receipt is not None:
             frozen_receipt = freeze_json(self.receipt, "receipt")
@@ -209,6 +211,13 @@ class IntranelMessage:
 
         if self.performative is Performative.REVIEW and not self.exact_subject:
             raise ValueError("REVIEW requires exact_subject")
+
+        if self.performative is Performative.EXECUTE and (
+            (self.operation_id is None) != (self.idempotency_key is None)
+        ):
+            raise ValueError(
+                "EXECUTE operation_id and idempotency_key must be provided together"
+            )
 
         mutating_execute = (
             self.performative is Performative.EXECUTE
@@ -238,8 +247,6 @@ class IntranelMessage:
                 if not getattr(self, name):
                     raise ValueError(f"CANCEL requires {name}")
 
-        # A RECEIPT message is a bound receipt *claim*. Admission/readback must
-        # independently verify its contents before treating it as effect truth.
         if self.performative is Performative.RECEIPT:
             if not self.operation_id:
                 raise ValueError("RECEIPT requires operation_id")
@@ -248,8 +255,6 @@ class IntranelMessage:
             if self.receipt is None:
                 raise ValueError("RECEIPT requires receipt")
 
-        # Enforce a whole-message bound after normalization, before untrusted
-        # semantic state can be admitted farther into the system.
         from .canonical import canonical_json_bytes
 
         if len(canonical_json_bytes(self)) > MAX_MESSAGE_BYTES:
@@ -293,6 +298,64 @@ class IntranelMessage:
             "capabilities": list(self.capabilities),
             "provenance": list(self.provenance),
         }
+
+
+
+def _reject_duplicate_json_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object member: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
+def parse_json_message(data: str | bytes) -> IntranelMessage:
+    """Parse strict UTF-8 JSON text into an INTRANEL/1 semantic message.
+
+    This is the raw wire boundary. Duplicate object members are rejected before
+    they can collapse into a Mapping, and raw input is bounded before JSON parse.
+    """
+    if isinstance(data, bytes):
+        try:
+            text = data.decode("utf-8", "strict")
+        except UnicodeDecodeError as exc:
+            raise ValueError("wire message must be valid UTF-8") from exc
+        raw_size = len(data)
+    elif isinstance(data, str):
+        try:
+            encoded = data.encode("utf-8", "strict")
+        except UnicodeEncodeError as exc:
+            raise ValueError("wire message must be valid UTF-8") from exc
+        text = data
+        raw_size = len(encoded)
+    else:
+        raise ValueError("wire message must be UTF-8 text or bytes")
+
+    if raw_size > MAX_MESSAGE_BYTES:
+        raise ValueError("wire message exceeds size limit")
+
+    try:
+        decoded = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_members,
+            parse_constant=_reject_json_constant,
+        )
+    except RecursionError as exc:
+        raise ValueError("wire JSON nesting exceeds decoder limit") from exc
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith("duplicate JSON object member:") or message.startswith(
+            "invalid JSON constant:"
+        ):
+            raise
+        raise ValueError(f"invalid Intranel JSON: {message}") from exc
+
+    return parse_message(decoded)
 
 
 def parse_message(mapping: Mapping[str, Any]) -> IntranelMessage:

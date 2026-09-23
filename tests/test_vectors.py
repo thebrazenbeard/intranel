@@ -46,7 +46,12 @@ class VectorTests(unittest.TestCase):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         review_then = schema["allOf"][0]["then"]
         self.assertEqual(review_then["properties"]["exact_subject"]["$ref"], "#/$defs/scalarString")
-        mutation_then = schema["allOf"][1]["then"]
+        mutation_then = next(
+            rule["then"]
+            for rule in schema["allOf"]
+            if rule.get("if", {}).get("properties", {}).get("performative", {}).get("const") == "EXECUTE"
+            and "effect_class" in rule.get("if", {}).get("properties", {})
+        )
         for field in ["operation_id", "idempotency_key", "authority_claim_ref", "exact_subject"]:
             with self.subTest(field=field):
                 self.assertIn(field, mutation_then["required"])

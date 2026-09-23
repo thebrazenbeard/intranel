@@ -1,0 +1,87 @@
+import json
+from pathlib import Path
+import unittest
+
+from jsonschema import Draft202012Validator, FormatChecker
+
+from intranel.message import parse_message
+
+
+ROOT = Path(__file__).parents[1]
+SCHEMA = json.loads((ROOT / "schema/INTRANEL_MESSAGE_V1.schema.json").read_text(encoding="utf-8"))
+VALIDATOR = Draft202012Validator(SCHEMA, format_checker=FormatChecker())
+
+
+def base_message(observed_at):
+    return {
+        "protocol": "INTRANEL/1",
+        "origin": "vera:primary",
+        "actor": "vera:primary",
+        "target": "vera:lane/bv",
+        "reply_to": "bus:vera-v2",
+        "message_id": "m-time-parity",
+        "conversation_id": "c-time-parity",
+        "performative": "REPORT",
+        "observed_at": observed_at,
+        "effect_class": "READ_ONLY",
+        "security_profile": "OPEN",
+    }
+
+
+class TimestampParityTests(unittest.TestCase):
+    def assert_parser_schema_agree(self, value):
+        raw = base_message(value)
+        schema_accepts = not list(VALIDATOR.iter_errors(raw))
+        try:
+            parse_message(raw)
+        except ValueError:
+            parser_accepts = False
+        else:
+            parser_accepts = True
+        self.assertEqual(parser_accepts, schema_accepts, value)
+
+    def test_space_separator_is_rejected_by_both(self):
+        self.assert_parser_schema_agree("2026-09-17 20:30:00+00:00")
+
+    def test_reduced_precision_time_is_rejected_by_both(self):
+        self.assert_parser_schema_agree("2026-09-17T20:30+00:00")
+
+    def test_lowercase_z_is_accepted_by_both(self):
+        self.assert_parser_schema_agree("2026-09-17T20:30:00z")
+
+    def test_out_of_range_time_and_offset_are_rejected_by_both(self):
+        for value in [
+            "2026-09-17T24:00:00Z",
+            "2026-09-17T20:30:60Z",
+            "2026-09-17T20:30:00+24:00",
+        ]:
+            with self.subTest(value=value):
+                self.assert_parser_schema_agree(value)
+
+    def test_fractional_seconds_are_limited_to_six_digits(self):
+        for value in [
+            "2026-09-18T00:00:00.0000001Z",
+            "2026-09-18T00:00:00.1234567+00:00",
+        ]:
+            raw = base_message(value)
+            self.assertNotEqual(list(VALIDATOR.iter_errors(raw)), [], value)
+            with self.assertRaises(ValueError):
+                parse_message(raw)
+
+    def test_six_digit_fractional_ordering_is_exact(self):
+        raw = base_message("2026-09-18T00:00:00.000001Z")
+        raw["expires_at"] = "2026-09-18T00:00:00.000002Z"
+        self.assertEqual(list(VALIDATOR.iter_errors(raw)), [])
+        parsed = parse_message(raw)
+        self.assertEqual(parsed.observed_at, "2026-09-18T00:00:00.000001Z")
+        self.assertEqual(parsed.expires_at, "2026-09-18T00:00:00.000002Z")
+
+    def test_calendar_invalid_date_is_reference_parser_semantic(self):
+        raw = base_message("2026-02-30T20:30:00Z")
+        self.assertEqual(list(VALIDATOR.iter_errors(raw)), [])
+        with self.assertRaises(ValueError):
+            parse_message(raw)
+
+
+if __name__ == "__main__":
+    unittest.main()

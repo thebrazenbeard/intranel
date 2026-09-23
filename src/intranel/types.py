@@ -5,6 +5,16 @@ from enum import Enum
 import re
 
 MAX_ADDRESS_LENGTH = 320
+MAX_TOKEN_LENGTH = 256
+
+
+def is_valid_token(value: object) -> bool:
+    """Return whether value is a V1 identity token: 1-256 printable ASCII chars."""
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= MAX_TOKEN_LENGTH
+        and all(0x21 <= ord(ch) <= 0x7E for ch in value)
+    )
 _ADDRESS_RE = re.compile(
     r"^(?P<namespace>[a-z][a-z0-9_-]*):(?P<node>[A-Za-z0-9][A-Za-z0-9._/-]*)$"
 )

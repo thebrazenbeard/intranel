@@ -56,6 +56,41 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("offset-aware iso 8601", text)
         self.assertIn("`expires_at` must be later than `observed_at`", text)
 
+    def test_timestamp_profile_documents_precision_and_leap_second_boundary(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("1-6 fractional digits", text)
+        self.assertIn("rfc 3339-derived", text)
+        self.assertIn("leap seconds", text)
+        self.assertIn("not accepted", text)
+
+    def test_idempotency_requires_atomic_operation_reservation(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("atomic", text)
+        self.assertIn("reserve", text)
+        self.assertIn("operation", text)
+
+    def test_architecture_rationale_matches_receipt_and_subject_semantics(self):
+        text = self.read("docs/superpowers/specs/2026-09-17-intranel-v1-design.md")
+        lower = text.lower()
+        self.assertIn("receipt claim", lower)
+        self.assertIn("does not prove", lower)
+        self.assertIn("every mutating `execute` requires `exact_subject`", lower)
+        self.assertIn("target_operation_id", text)
+
+    def test_canonical_identity_documents_default_normalization(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("default-normalized semantic form", text)
+        self.assertIn("ack_required", text)
+        self.assertIn("priority", text)
+        self.assertIn("missing and explicit defaults", text)
+
+    def test_raw_json_wire_boundary_is_normative(self):
+        text = self.read("spec/INTRANEL_1.md").lower()
+        self.assertIn("raw wire", text)
+        self.assertIn("duplicate json object member", text)
+        self.assertIn("before schema", text)
+        self.assertIn("65536", text)
+
     def test_hostile_repair_boundaries_are_explicit(self):
         text = self.read("spec/INTRANEL_1.md").lower()
         for phrase in [

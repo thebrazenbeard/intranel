@@ -152,7 +152,11 @@
         {
           "type": "string",
           "format": "date-time",
-          "maxLength": 4096
+          "maxLength": 4096,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])[Tt](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
         },
         {
           "type": "null"
@@ -164,7 +168,11 @@
         {
           "type": "string",
           "format": "date-time",
-          "maxLength": 4096
+          "maxLength": 4096,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])[Tt](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
         },
         {
           "type": "null"
@@ -250,13 +258,19 @@
       "type": "string",
       "minLength": 3,
       "maxLength": 320,
-      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$"
+      "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9._/-]*$",
+      "not": {
+        "pattern": "[^A-Za-z0-9._/:-]"
+      }
     },
     "token": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^\\S+$"
+      "pattern": "^[\\u0021-\\u007E]+$",
+      "not": {
+        "pattern": "[^\\u0021-\\u007E]"
+      }
     },
     "scalarString": {
       "type": "string",
@@ -267,7 +281,10 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^[\\x20-\\x7E]+$"
+      "pattern": "^[\\x20-\\x7E]+$",
+      "not": {
+        "pattern": "[^\\x20-\\x7E]"
+      }
     },
     "stringArray": {
       "type": "array",
@@ -334,6 +351,46 @@
             "$ref": "#/$defs/scalarString"
           }
         }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "performative": {
+            "const": "EXECUTE"
+          }
+        },
+        "required": [
+          "performative"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "operation_id": {
+                "type": "null"
+              },
+              "idempotency_key": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "required": [
+              "operation_id",
+              "idempotency_key"
+            ],
+            "properties": {
+              "operation_id": {
+                "$ref": "#/$defs/token"
+              },
+              "idempotency_key": {
+                "$ref": "#/$defs/token"
+              }
+            }
+          }
+        ]
       }
     },
     {

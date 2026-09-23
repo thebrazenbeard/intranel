@@ -22,16 +22,24 @@ VALID=[
  base(),
  base(performative="REVIEW",exact_subject="sha256:"+"a"*64),
  base(performative="EXECUTE",effect_class="REVERSIBLE_MUTATION",operation_id="op",idempotency_key="i",authority_claim_ref="a",exact_subject="sha256:"+"a"*64),
+ base(performative="EXECUTE",effect_class="READ_ONLY",operation_id="read-op",idempotency_key="read-i"),
  base(performative="CANCEL",effect_class="PROTECTED_MUTATION",operation_id="cancel",target_operation_id="target",idempotency_key="i",authority_claim_ref="a",subject="operation:target",exact_subject="receipt:x"),
  base(performative="RECEIPT",operation_id="target",exact_subject="receipt:x",receipt={"effect_state":"observed"}),
 ]
 INVALID=[
  base(performative="EXECUTE",effect_class="REVERSIBLE_MUTATION",operation_id="op",idempotency_key="i",authority_claim_ref="a",exact_subject=None),
+ base(performative="EXECUTE",effect_class="READ_ONLY",operation_id="read-op",idempotency_key=None),
  base(performative="CANCEL",effect_class="READ_ONLY",operation_id="cancel",target_operation_id="target",idempotency_key="i",authority_claim_ref="a",subject="operation:target",exact_subject="receipt:x"),
  base(performative="CANCEL",effect_class="PROTECTED_MUTATION",operation_id="cancel",target_operation_id=None,idempotency_key="i",authority_claim_ref="a",subject="operation:target",exact_subject="receipt:x"),
  base(performative="RECEIPT",operation_id=None,exact_subject="receipt:x",receipt={"x":1}),
  base(payload={"v":1e-6}),
  base(payload={"é":1}),
+ base(origin="vera:primary\n"),
+ base(message_id="m\n"),
+ base(message_id="m\ufeffx"),
+ base(message_id="m\u0085x"),
+ base(message_id="m-é"),
+ base(payload={"bad\n":1}),
 ]
 
 class SchemaParityTests(unittest.TestCase):
