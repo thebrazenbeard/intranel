@@ -92,7 +92,13 @@ def _tuple_of_strings(value: Any, field_name: str) -> tuple[str, ...]:
         raise ValueError(f"{field_name} must be an array of strings")
     if len(value) > MAX_LIST_ITEMS:
         raise ValueError(f"{field_name} exceeds collection limit")
-    return tuple(_optional_string(item, field_name) or "" for item in value)
+    parsed_items: list[str] = []
+    for item in value:
+        parsed = _optional_string(item, field_name)
+        if parsed is None:
+            raise ValueError(f"{field_name} must contain only non-empty strings")
+        parsed_items.append(parsed)
+    return tuple(parsed_items)
 
 
 def _parse_timestamp(
