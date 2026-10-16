@@ -79,5 +79,33 @@ class GitHubReadOnlyObservationTests(unittest.TestCase):
             observe_pr_comments(self.db, fetch_page=lambda _: [{"id": None, "body": "x"}])
 
 
+    def test_three_full_pages_are_unambiguously_incomplete(self):
+        called = []
+        def full(page):
+            called.append(page)
+            return [{"id": page * 1000 + i, "body": "unrelated"}
+                    for i in range(100)]
+        result = observe_pr_comments(self.db, pages=3, fetch_page=full)
+        self.assertEqual(called, [1, 2, 3])
+        self.assertEqual(result["comments_read"], 300)
+        self.assertFalse(result["coverage_complete"])
+        self.assertEqual(result["coverage_status"], "HOLD_COMMENT_PAGINATION_LIMIT")
+        self.assertEqual(result["next_page"], 4)
+        self.assertFalse(result["ack_accepted"])
+
+    def test_explicit_receiver_callback_is_selected_over_legacy_ledger_observer(self):
+        req = request()
+        called = []
+        def receive(packet, source):
+            called.append((packet["message_id"], source))
+            return {"ingest": "OBSERVED_NEW"}
+        result = observe_pr_comments(
+            self.db, fetch_page=lambda _: [comment(42, req)],
+            ingest_packet=receive,
+        )
+        self.assertEqual(result["observed_new"], 1)
+        self.assertEqual(called[0][0], req["message_id"])
+        self.assertEqual(self.db.counts()["observations"], 0)
+
 if __name__ == "__main__":
     unittest.main()

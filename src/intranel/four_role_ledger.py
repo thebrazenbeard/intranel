@@ -95,6 +95,8 @@ class FourRoleLedger:
         digest = content_digest(m)
         with self._db() as db:
             db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='receiver_binding'").fetchone() is not None:
+                raise CoordinationError("receiver-bound ledger requires receiver ingress")
             prior = db.execute(
                 "SELECT digest FROM observed WHERE conversation_id=? AND message_id=?",
                 (m.conversation_id, m.message_id)
@@ -121,6 +123,8 @@ class FourRoleLedger:
 
     def classify(self, conversation_id: str, message_id: str) -> dict[str, Any]:
         with self._db() as db:
+            if type(self) is FourRoleLedger and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='receiver_binding'").fetchone() is not None:
+                raise CoordinationError("receiver-bound ledger requires receiver classification")
             row = db.execute("SELECT content,digest,source_ref FROM observed "
                              "WHERE conversation_id=? AND message_id=?",
                              (conversation_id, message_id)).fetchone()

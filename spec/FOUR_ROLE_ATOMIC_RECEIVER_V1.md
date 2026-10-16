@@ -66,3 +66,21 @@ Before adoption, PORTAL must decide whether this file replaces the two-store
 path, how outbound REQUESTs enter the same authoritative DB, and how
 legacy rows are preserved/read without fabricating provenance or ACKs.
 Do not automatically migrate, merge databases, or claim installed behavior.
+
+## Receiver-mode CLI and legacy writer fence (draft source only)
+
+Using `--expected-target vera:portal` explicitly selects
+`AtomicRoleReceiver` for ingest, inspection, counts and bounded GitHub polling.
+`--outbound-request` is a separate locally initiated parent-request path.
+The receiver class refuses inherited `observe`, and the legacy
+`FourRoleLedger.observe` rejects any SQLite database containing the
+`receiver_binding` schema. Legacy direct inspection of receiver-bound
+records also fails closed. Standalone unbound legacy ledgers remain supported.
+
+The GitHub scanner accepts an explicit receiver ingress callback. It still
+has only bounded page sampling, no durable provider cursor in the atomic
+transaction, and no authenticated sender/device/ChatGPT delivery. A final
+full page returns incomplete coverage, not an accepted or delivered ACK.
+Source/test evidence is distinct from installing a route or activating a
+resident watcher. No scheduled task, branch merge or runtime migration
+is implied by this draft.

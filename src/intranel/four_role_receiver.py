@@ -11,6 +11,8 @@ import sqlite3
 from typing import Any, Mapping
 
 from .canonical import canonical_json_bytes, content_digest
+from .message import parse_message
+from .types import Performative
 from .coordination import ROLE_ADDRESSES, unwrap, wrap
 from .four_role_ledger import (
     CoordinationError, FourRoleLedger, _now, _validate,
@@ -40,6 +42,12 @@ class AtomicRoleReceiver(FourRoleLedger):
                     "INSERT INTO receiver_binding(singleton,expected_target) VALUES(1,?)",
                     (expected_target,),
                 )
+            db.execute("""CREATE TABLE IF NOT EXISTS receiver_outbound (
+                message_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                semantic_sha256 TEXT NOT NULL,
+                source_ref TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS receiver_staged (
                 conversation_id TEXT NOT NULL,
                 message_id TEXT NOT NULL PRIMARY KEY,
@@ -48,6 +56,141 @@ class AtomicRoleReceiver(FourRoleLedger):
                 envelope TEXT NOT NULL,
                 source_ref TEXT NOT NULL
             )""")
+
+    def observe(self, packet: Mapping[str, Any], source_ref: str) -> dict[str, Any]:
+        """Reject the weaker inherited observer in a receiver-owned ledger."""
+        raise CoordinationError("receiver-bound ledger requires receive or outbound request")
+
+    def observe_outbound_request(self, packet: Mapping[str, Any],
+                                 source_ref: str) -> dict[str, Any]:
+        """Commit observed local PORTAL parent and outbound marker together.
+
+        This marker reflects local origin configuration, not authentication.
+        """
+        if type(source_ref) is not str or not 1 <= len(source_ref) <= 512:
+            raise CoordinationError("outbound source locator required")
+        m = parse_message(packet)
+        _validate(m)
+        if m.performative is not Performative.REQUEST or str(m.origin) != self.expected_target:
+            raise CoordinationError("only locally authored coordinator REQUESTs are allowed")
+        digest = content_digest(m)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = db.execute(
+                "SELECT conversation_id,digest FROM observed WHERE message_id=?",
+                (m.message_id,),
+            ).fetchone()
+            marker = db.execute(
+                "SELECT conversation_id,semantic_sha256 FROM receiver_outbound WHERE message_id=?",
+                (m.message_id,),
+            ).fetchone()
+            if old is not None:
+                if (marker is None or old["conversation_id"] != m.conversation_id
+                        or old["digest"] != digest
+                        or marker["conversation_id"] != m.conversation_id
+                        or marker["semantic_sha256"] != digest):
+                    raise CoordinationError("outbound request conflicts with earlier evidence")
+                ingest = "DUPLICATE"
+            else:
+                if marker is not None:
+                    raise CoordinationError("orphaned outbound provenance marker")
+                db.execute(
+                    """INSERT INTO observed
+                       (conversation_id,message_id,content,digest,source_ref,observed_at)
+                       VALUES(?,?,?,?,?,?)""",
+                    (m.conversation_id, m.message_id, canonical_json_bytes(m),
+                     digest, source_ref, _now()),
+                )
+                db.execute(
+                    """INSERT INTO receiver_outbound
+                       (message_id,conversation_id,semantic_sha256,source_ref)
+                       VALUES(?,?,?,?)""",
+                    (m.message_id, m.conversation_id, digest, source_ref),
+                )
+                ingest = "OBSERVED_NEW"
+        return {"ingest": ingest, **self.classify(m.conversation_id, m.message_id)}
+
+    def classify(self, conversation_id: str, message_id: str) -> dict[str, Any]:
+        """Public classification requires paired inbound or marked outbound data."""
+        with self._db() as db:
+            row = db.execute(
+                "SELECT content,digest,source_ref FROM observed "
+                "WHERE conversation_id=? AND message_id=?",
+                (conversation_id, message_id),
+            ).fetchone()
+            if row is None:
+                raise CoordinationError("not observed")
+            held = {
+                "classification": "HOLD_UNPAIRED_INBOUND",
+                "digest": row["digest"], "source_ref": row["source_ref"],
+                "origin_authenticated": False, "delivered": False,
+                "ack_accepted": False, "executed": False,
+            }
+            collision = db.execute(
+                "SELECT 1 FROM collisions WHERE conversation_id=? AND message_id=? LIMIT 1",
+                (conversation_id, message_id),
+            ).fetchone()
+            if collision is not None:
+                held["classification"] = "IDENTITY_COLLISION"
+                return held
+            try:
+                msg = parse_message(json.loads(row["content"]))
+                if (msg.message_id != message_id
+                        or msg.conversation_id != conversation_id
+                        or content_digest(msg) != row["digest"]):
+                    held["classification"] = "HOLD_OBSERVATION_TAMPERED"
+                    return held
+            except (TypeError, ValueError, KeyError):
+                held["classification"] = "HOLD_OBSERVATION_TAMPERED"
+                return held
+            if msg.performative is Performative.REQUEST and str(msg.origin) == self.expected_target:
+                marker = db.execute(
+                    """SELECT semantic_sha256 FROM receiver_outbound
+                       WHERE conversation_id=? AND message_id=?""",
+                    (conversation_id, message_id),
+                ).fetchone()
+                if marker is None or marker["semantic_sha256"] != row["digest"]:
+                    held["classification"] = "HOLD_UNMARKED_OUTBOUND_REQUEST"
+                    return held
+            else:
+                staged = db.execute(
+                    """SELECT conversation_id,semantic_sha256,target,envelope
+                       FROM receiver_staged WHERE message_id=?""",
+                    (message_id,),
+                ).fetchone()
+                if staged is None:
+                    return held
+                try:
+                    packed = json.dumps(wrap(msg), ensure_ascii=False,
+                                        sort_keys=True, separators=(",", ":"))
+                    self._check_staged(staged, conversation_id, message_id,
+                                       row["digest"], packed)
+                except (ValueError, TypeError, KeyError):
+                    held["classification"] = "HOLD_STAGED_RECEIPT_INVALID"
+                    return held
+                if msg.performative is not Performative.REQUEST:
+                    parent = db.execute(
+                        """SELECT o.content,o.digest,p.semantic_sha256
+                           FROM observed AS o JOIN receiver_outbound AS p
+                             ON p.conversation_id=o.conversation_id
+                            AND p.message_id=o.message_id
+                           WHERE o.conversation_id=? AND o.message_id=?""",
+                        (conversation_id, msg.parent_message_id),
+                    ).fetchone()
+                    if parent is None or parent["digest"] != parent["semantic_sha256"]:
+                        held["classification"] = "HOLD_UNMARKED_PARENT_REQUEST"
+                        return held
+                    try:
+                        parent_msg = parse_message(json.loads(parent["content"]))
+                    except (TypeError, ValueError, KeyError):
+                        held["classification"] = "HOLD_PARENT_REQUEST_TAMPERED"
+                        return held
+                    if (parent_msg.performative is not Performative.REQUEST
+                            or str(parent_msg.origin) != self.expected_target
+                            or content_digest(parent_msg) != parent["digest"]):
+                        held["classification"] = "HOLD_PARENT_REQUEST_TAMPERED"
+                        return held
+        return FourRoleLedger.classify(self, conversation_id, message_id)
 
     def _after_observation_before_stage(self) -> None:
         """Deterministic fault seam; an exception rolls back BOTH writes."""

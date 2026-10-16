@@ -43,15 +43,19 @@ def observe_pr_comments(
     *,
     pages: int = 1,
     fetch_page: Callable[[int], list[dict[str, Any]]] = _fetch_page,
-) -> dict[str, int | bool]:
+    ingest_packet: Callable[[dict[str, Any], str], dict[str, Any]] | None = None,
+) -> dict[str, int | bool | str | None]:
     if type(pages) is not int or not 1 <= pages <= 3:
         raise CoordinationError("poll limited to 1..3 pages")
-    result: dict[str, int | bool] = {
+    result: dict[str, int | bool | str | None] = {
         "comments_read": 0, "fenced_packets": 0, "observed_new": 0,
         "duplicates": 0, "identity_conflicts": 0,
         "rejected_unqualified": 0, "ignored_noncausal": 0,
         "origin_authenticated": False, "delivered": False, "ack_accepted": False,
+        "coverage_complete": False, "coverage_status": "HOLD_NOT_SCANNED",
+        "next_page": None,
     }
+    last_page_full = False
     for index in range(1, pages + 1):
         comments = fetch_page(index)
         if type(comments) is not list or len(comments) > 100:
@@ -81,7 +85,7 @@ def observe_pr_comments(
                     result["ignored_noncausal"] += 1
                     continue
                 try:
-                    observed = ledger.observe(
+                    observed = (ingest_packet or ledger.observe)(
                         packet,
                         f"github:thebrazenbeard/intranel#9/comment/{comment_id}",
                     )
@@ -97,6 +101,11 @@ def observe_pr_comments(
                     result["identity_conflicts"] += 1
                 else:
                     raise CoordinationError("unknown observation classification")
-        if len(comments) < 100:
+        last_page_full = len(comments) == 100
+        if not last_page_full:
             break
+    result["coverage_complete"] = not last_page_full
+    result["coverage_status"] = ("HOLD_COMMENT_PAGINATION_LIMIT"
+                                 if last_page_full else "COMPLETE_SCANNED_WINDOW")
+    result["next_page"] = index + 1 if last_page_full else None
     return result

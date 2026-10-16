@@ -10,6 +10,7 @@ from unittest.mock import patch
 import sqlite3
 
 from intranel import parse_message
+from intranel.canonical import canonical_json_bytes, content_digest
 from intranel.coordination import wrap
 from intranel.four_role_ledger import CoordinationError
 from intranel.four_role_receiver import AtomicRoleReceiver
@@ -24,7 +25,7 @@ class AtomicRoleReceiverTests(TestCase):
         self.receiver = AtomicRoleReceiver(self.path, expected_target="vera:portal")
         self.req = request()
         self.reply = reply(self.req)
-        self.receiver.observe(self.req, "outgoing:portal/request")
+        self.receiver.observe_outbound_request(self.req, "outgoing:portal/request")
 
     def _packet(self, native):
         return wrap(parse_message(native))
@@ -52,7 +53,18 @@ class AtomicRoleReceiverTests(TestCase):
         self.assertFalse(replay["delivered"])
 
     def test_existing_unpaired_observation_holds_not_backfilled(self):
-        self.receiver.observe(self.reply, "legacy:observer-only")
+        with self.assertRaises(CoordinationError):
+            self.receiver.observe(self.reply, "legacy:observer-only")
+        # Existing orphan evidence can still be present after a migration.
+        m = parse_message(self.reply)
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute(
+                "INSERT INTO observed "
+                "(conversation_id,message_id,content,digest,source_ref,observed_at) "
+                "VALUES(?,?,?,?,?,?)",
+                (m.conversation_id, m.message_id, canonical_json_bytes(m),
+                 content_digest(m), "legacy:observer-only", "prior-to-migration"),
+            )
         with self.assertRaisesRegex(CoordinationError, "unpaired"):
             self.receiver.receive(self._packet(self.reply), "github:comment/2")
         self.assertEqual(self._rows(), (1, 0))
