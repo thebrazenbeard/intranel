@@ -369,6 +369,13 @@ class AtomicRoleReceiver(FourRoleLedger):
             ).fetchone()
             if row is None:
                 raise CoordinationError("comment packet not locally checkpointed")
+            collision = db.execute(
+                "SELECT 1 FROM collisions WHERE conversation_id=? "
+                "AND message_id=? LIMIT 1",
+                (row["conversation_id"], message_id),
+            ).fetchone()
+            if collision is not None:
+                raise CoordinationError("comment packet identity collision: HOLD")
             if (row["observation_digest"] != row["semantic_sha256"]
                     or row["staged_digest"] != row["semantic_sha256"]
                     or row["target"] != self.expected_target
