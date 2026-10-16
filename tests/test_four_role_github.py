@@ -160,3 +160,30 @@ class GitHubReadOnlyObservationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_receiver_scan_persists_only_packet_marker_with_staged_reply(self):
+        from intranel.four_role_receiver import AtomicRoleReceiver
+        from intranel.coordination import wrap
+        from intranel import parse_message
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as dirname:
+            receiver = AtomicRoleReceiver(
+                Path(dirname) / "receiver.sqlite", expected_target="vera:portal"
+            )
+            receiver.observe_outbound_request(request(), "local:request")
+            replies = [comment(77, reply(request()))]
+            out = observe_pr_comments(
+                receiver, fetch_page=lambda _: replies,
+                ingest_packet=lambda packet, source: receiver.receive(
+                    wrap(parse_message(packet)), source,
+                    comment_id=int(source.rsplit("/", 1)[-1])),
+            )
+            self.assertEqual(out["observed_new"], 1)
+            self.assertEqual(receiver.receiver_counts()["staged"], 1)
+            checkpoint = receiver.comment_packet_checkpoint()
+            self.assertEqual(checkpoint["highest_packet_comment_id"], 77)
+            self.assertEqual(checkpoint["packet_markers"], 1)
+            self.assertFalse(checkpoint["coverage_complete"])
+            self.assertFalse(checkpoint["ack_accepted"])

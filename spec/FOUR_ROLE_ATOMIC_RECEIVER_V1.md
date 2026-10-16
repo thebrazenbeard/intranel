@@ -100,3 +100,26 @@ from provider snapshot currentness. This does not persist a cursor,
 authenticate the comment origin, obtain a consistent provider snapshot, or
 establish delivered or accepted ACKs. Existing receiver-owned SQLite
 observation/receipt atomics and actor/effect ceilings are unchanged.
+
+## Receiver-owned comment packet evidence experiment (source only)
+
+When called by the bounded PR9 read-only scanner with a validated
+`comment_id`, `AtomicRoleReceiver.receive` now commits three local
+facts in the SAME receiver SQLite `BEGIN IMMEDIATE`: canonical
+observation, staging receipt and `receiver_comment_packet` marker.
+`receiver_comment_highwater` is an upper bound over locally processed
+**packet-bearing** comment IDs, **not** all PR comments, source snapshot,
+or an authenticated cursor. An existing staged packet without a comment
+marker is **never backfilled** as proof. A previously unknown packet from
+a smaller comment ID than recorded highwater HOLDS; an exact marker
+replay deduplicates without advancing. All comment markers require an
+exact PR9 source locator and positive integer comment ID. Test fault
+injection after staging but before marker insertion rolls back all
+three records; reopened receiver readback verifies this.
+
+This is explicitly an experiment. Page offsets can reorder on
+insertion/deletion; some comments have no admissible packet;
+GitHub provider consistency and signer identity are unproven; the
+checkpoint cannot attest complete scanned coverage or remote
+delivery. No background fetcher, cursor-based service, acceptance,
+or installation is introduced. PORTAL independent review required.

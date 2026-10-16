@@ -156,3 +156,58 @@ class AtomicRoleReceiverTests(TestCase):
             "OBSERVED_NEW",
         )
         self.assertEqual(self._rows(), (1, 1))
+
+
+    def test_atomic_local_comment_marker_crash_and_replay(self):
+        source = "github:thebrazenbeard/intranel#9/comment/42"
+        before = self.receiver.comment_packet_checkpoint()
+        self.assertEqual(before["packet_markers"], 0)
+        self.assertIsNone(before["highest_packet_comment_id"])
+        with patch.object(self.receiver, "_after_stage_before_comment_checkpoint",
+                          side_effect=RuntimeError("checkpoint crash")):
+            with self.assertRaisesRegex(RuntimeError, "checkpoint crash"):
+                self.receiver.receive(self._packet(self.reply), source, comment_id=42)
+        self.assertEqual(self._rows(), (0, 0))
+        self.assertEqual(
+            AtomicRoleReceiver(self.path, expected_target="vera:portal")
+                .comment_packet_checkpoint()["packet_markers"], 0,
+        )
+        reopened = AtomicRoleReceiver(self.path, expected_target="vera:portal")
+        out = reopened.receive(self._packet(self.reply), source, comment_id=42)
+        self.assertEqual(out["ingest"], "OBSERVED_NEW")
+        self.assertEqual(out["comment_checkpoint"], "LOCAL_PACKET_ONLY_UNATTESTED")
+        self.assertEqual(self._rows(), (1, 1))
+        after = reopened.comment_packet_checkpoint()
+        self.assertEqual(after["packet_markers"], 1)
+        self.assertEqual(after["highest_packet_comment_id"], 42)
+        self.assertFalse(after["coverage_complete"])
+        self.assertFalse(after["origin_authenticated"])
+        replay = reopened.receive(self._packet(self.reply), source, comment_id=42)
+        self.assertEqual(replay["ingest"], "DUPLICATE")
+        self.assertEqual(reopened.comment_packet_checkpoint(), after)
+
+    def test_unknown_older_comment_and_unpaired_checkpoint_hold(self):
+        source = "github:thebrazenbeard/intranel#9/comment/50"
+        self.receiver.receive(self._packet(self.reply), source, comment_id=50)
+        other = deepcopy(self.reply)
+        other["message_id"] = "reply-2"
+        with self.assertRaisesRegex(CoordinationError, "late unrecognized"):
+            self.receiver.receive(
+                self._packet(other),
+                "github:thebrazenbeard/intranel#9/comment/49",
+                comment_id=49,
+            )
+        self.assertEqual(self.receiver.comment_packet_checkpoint()["packet_markers"], 1)
+        with self.assertRaisesRegex(CoordinationError, "locator mismatch"):
+            self.receiver.receive(self._packet(other), "github:comment/51", comment_id=51)
+        with self.assertRaisesRegex(CoordinationError, "locator mismatch"):
+            self.receiver.receive(self._packet(other), source, comment_id=True)
+
+    def test_legacy_staged_reply_cannot_acquire_comment_marker_on_replay(self):
+        packet = self._packet(self.reply)
+        source = "github:thebrazenbeard/intranel#9/comment/60"
+        self.receiver.receive(packet, source)
+        with self.assertRaisesRegex(CoordinationError, "unpaired comment"):
+            self.receiver.receive(packet, source, comment_id=60)
+        self.assertEqual(self._rows(), (1, 1))
+        self.assertEqual(self.receiver.comment_packet_checkpoint()["packet_markers"], 0)

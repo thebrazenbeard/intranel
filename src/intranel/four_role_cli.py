@@ -80,7 +80,8 @@ def run(argv: list[str] | None = None) -> dict:
             return observe_pr_comments(ledger, pages=args.pages,
                 start_page=args.start_page,
                 ingest_packet=lambda packet, source: ledger.receive(
-                    wrap(parse_message(packet)), source))
+                    wrap(parse_message(packet)), source,
+                    comment_id=int(source.rsplit("/", 1)[-1])))
         return observe_pr_comments(ledger, pages=args.pages,
                                    start_page=args.start_page)
     if args.command == "inspect":

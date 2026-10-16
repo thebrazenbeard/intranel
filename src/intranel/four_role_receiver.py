@@ -48,6 +48,17 @@ class AtomicRoleReceiver(FourRoleLedger):
                 semantic_sha256 TEXT NOT NULL,
                 source_ref TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS receiver_comment_packet (
+                comment_id INTEGER NOT NULL,
+                conversation_id TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                semantic_sha256 TEXT NOT NULL,
+                PRIMARY KEY (comment_id,message_id)
+            )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS receiver_comment_highwater (
+                singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                highest_packet_comment_id INTEGER NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS receiver_staged (
                 conversation_id TEXT NOT NULL,
                 message_id TEXT NOT NULL PRIMARY KEY,
@@ -195,10 +206,23 @@ class AtomicRoleReceiver(FourRoleLedger):
     def _after_observation_before_stage(self) -> None:
         """Deterministic fault seam; an exception rolls back BOTH writes."""
 
-    def receive(self, envelope: Mapping[str, Any], source_ref: str) -> dict[str, Any]:
-        """Commit observed packet + staging record together; never assert delivery."""
+    def _after_stage_before_comment_checkpoint(self) -> None:
+        """Fault seam: optional local packet progress rolls back with staging."""
+
+    def receive(self, envelope: Mapping[str, Any], source_ref: str, *,
+                comment_id: int | None = None) -> dict[str, Any]:
+        """Atomic local packet observation/staging plus optional comment marker.
+
+        This cannot prove provider pagination, snapshot stability or sender.
+        """
         if type(source_ref) is not str or not 1 <= len(source_ref) <= 512:
             raise CoordinationError("bounded source locator required")
+        if comment_id is not None:
+            if (type(comment_id) is not int
+                    or not 1 <= comment_id <= 9223372036854775807
+                    or source_ref !=
+                    f"github:thebrazenbeard/intranel#9/comment/{comment_id}"):
+                raise CoordinationError("comment ID/locator mismatch")
         m = unwrap(envelope)
         _validate(m)
         if str(m.target) != self.expected_target:
@@ -210,6 +234,25 @@ class AtomicRoleReceiver(FourRoleLedger):
         )
         with self._db() as db:
             db.execute("BEGIN IMMEDIATE")
+            marker = None
+            if comment_id is not None:
+                marker = db.execute(
+                    """SELECT conversation_id,semantic_sha256
+                       FROM receiver_comment_packet
+                       WHERE comment_id=? AND message_id=?""",
+                    (comment_id,m.message_id),
+                ).fetchone()
+                high = db.execute(
+                    "SELECT highest_packet_comment_id FROM receiver_comment_highwater "
+                    "WHERE singleton=1"
+                ).fetchone()
+                highest = high["highest_packet_comment_id"] if high else None
+                if marker is not None:
+                    if (marker["conversation_id"] != m.conversation_id
+                            or marker["semantic_sha256"] != digest):
+                        raise CoordinationError("comment packet marker mismatch")
+                elif highest is not None and comment_id < highest:
+                    raise CoordinationError("late unrecognized comment packet: HOLD")
             previous = db.execute(
                 "SELECT conversation_id,digest FROM observed WHERE message_id=?",
                 (m.message_id,),
@@ -235,6 +278,8 @@ class AtomicRoleReceiver(FourRoleLedger):
                 if staged is None:
                     raise CoordinationError("unpaired legacy observation: HOLD")
                 self._check_staged(staged, m.conversation_id, m.message_id, digest, packed)
+                if comment_id is not None and marker is None:
+                    raise CoordinationError("unpaired comment packet marker: HOLD")
                 ingest = "DUPLICATE"
             else:
                 if staged is not None:
@@ -254,7 +299,30 @@ class AtomicRoleReceiver(FourRoleLedger):
                      packed, source_ref),
                 )
                 ingest = "OBSERVED_NEW"
-        return {"ingest": ingest, **self.classify(m.conversation_id, m.message_id)}
+            if comment_id is not None and ingest == "OBSERVED_NEW":
+                # All LOCAL writes belong to the same BEGIN IMMEDIATE.
+                # A highwater over packet IDs is not a provider cursor.
+                self._after_stage_before_comment_checkpoint()
+                db.execute(
+                    """INSERT INTO receiver_comment_packet
+                       (comment_id,conversation_id,message_id,semantic_sha256)
+                       VALUES(?,?,?,?)""",
+                    (comment_id,m.conversation_id,m.message_id,digest),
+                )
+                db.execute(
+                    """INSERT INTO receiver_comment_highwater
+                       (singleton,highest_packet_comment_id)
+                       VALUES(1,?)
+                       ON CONFLICT(singleton) DO UPDATE SET
+                           highest_packet_comment_id=max(
+                               highest_packet_comment_id,
+                               excluded.highest_packet_comment_id)""",
+                    (comment_id,),
+                )
+        result = {"ingest": ingest, **self.classify(m.conversation_id, m.message_id)}
+        if comment_id is not None:
+            result["comment_checkpoint"] = "LOCAL_PACKET_ONLY_UNATTESTED"
+        return result
 
     def _check_staged(
         self, staged: sqlite3.Row, conversation: str, mid: str,
@@ -271,6 +339,22 @@ class AtomicRoleReceiver(FourRoleLedger):
             raise CoordinationError("staged receipt invalid: HOLD") from exc
         if msg.message_id != mid or content_digest(msg) != digest:
             raise CoordinationError("staged receipt semantics mismatch: HOLD")
+
+    def comment_packet_checkpoint(self) -> dict[str, int | None | bool]:
+        """Local packet-marker readback, never complete provider coverage."""
+        with self._db() as db:
+            high = db.execute(
+                "SELECT highest_packet_comment_id FROM receiver_comment_highwater "
+                "WHERE singleton=1"
+            ).fetchone()
+            count = db.execute("SELECT count(*) FROM receiver_comment_packet").fetchone()[0]
+        return {
+            "highest_packet_comment_id": high[0] if high else None,
+            "packet_markers": count,
+            "coverage_complete": False,
+            "origin_authenticated": False,
+            "ack_accepted": False,
+        }
 
     def receiver_counts(self) -> dict[str, int]:
         with self._db() as db:
