@@ -25,6 +25,8 @@ def run(argv: list[str] | None = None) -> dict:
     parser.add_argument("--packet", type=Path)
     parser.add_argument("--source-ref")
     parser.add_argument("--pages", type=int, default=1, help="Bounded read-only GitHub PR9 poll")
+    parser.add_argument("--start-page", type=int, default=1,
+                        help="Explicit GitHub comment page window; no persisted cursor")
     parser.add_argument("--conversation-id")
     parser.add_argument("--message-id")
     parser.add_argument("--staging-ledger", type=Path,
@@ -76,9 +78,11 @@ def run(argv: list[str] | None = None) -> dict:
             from .coordination import wrap
             from .message import parse_message
             return observe_pr_comments(ledger, pages=args.pages,
+                start_page=args.start_page,
                 ingest_packet=lambda packet, source: ledger.receive(
                     wrap(parse_message(packet)), source))
-        return observe_pr_comments(ledger, pages=args.pages)
+        return observe_pr_comments(ledger, pages=args.pages,
+                                   start_page=args.start_page)
     if args.command == "inspect":
         if not args.conversation_id or not args.message_id:
             raise CoordinationError("inspection requires conversation and message IDs")

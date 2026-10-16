@@ -84,3 +84,19 @@ full page returns incomplete coverage, not an accepted or delivered ACK.
 Source/test evidence is distinct from installing a route or activating a
 resident watcher. No scheduled task, branch merge or runtime migration
 is implied by this draft.
+
+## Explicit bounded comment-page continuation (source only)
+
+`four_role_cli poll --start-page 4 --pages 3` can manually inspect
+later comment windows that the prior fixed page-1..3 scan missed. Each call
+remains limited to three pages and provider page numbers 1..100. A resumed
+window never claims `coverage_complete=true`: it reports
+`HOLD_PRECEDING_PAGES_UNVERIFIED` if it sees a short terminal page,
+or `HOLD_COMMENT_PAGINATION_LIMIT` with a `next_page` on full pages.
+At page 100 the reader returns `HOLD_COMMENT_PAGE_CEILING` without a
+fabricated next page. It also supplies `start_page`, `last_page`,
+`pages_read` and `terminal_page_observed` to distinguish local sampling
+from provider snapshot currentness. This does not persist a cursor,
+authenticate the comment origin, obtain a consistent provider snapshot, or
+establish delivered or accepted ACKs. Existing receiver-owned SQLite
+observation/receipt atomics and actor/effect ceilings are unchanged.

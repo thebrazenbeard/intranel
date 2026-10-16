@@ -107,5 +107,56 @@ class GitHubReadOnlyObservationTests(unittest.TestCase):
         self.assertEqual(called[0][0], req["message_id"])
         self.assertEqual(self.db.counts()["observations"], 0)
 
+    def test_bounded_resume_reaches_later_comment_without_claiming_total_coverage(self):
+        from intranel.four_role_github import _fetch_page
+        calls = []
+        packet = reply(request())
+        def provider(page):
+            calls.append(page)
+            if page <= 3:
+                return [{"id": page * 100 + i, "body": "older"}
+                        for i in range(100)]
+            return [comment(401, packet)]
+        initial = observe_pr_comments(self.db, pages=3, fetch_page=provider)
+        self.assertEqual(initial["next_page"], 4)
+        self.assertEqual(initial["pages_read"], 3)
+        self.assertFalse(initial["coverage_complete"])
+        later = observe_pr_comments(
+            self.db, pages=1, start_page=initial["next_page"],
+            fetch_page=provider,
+        )
+        self.assertEqual(calls, [1, 2, 3, 4])
+        self.assertEqual(later["observed_new"], 1)
+        self.assertTrue(later["terminal_page_observed"])
+        self.assertFalse(later["coverage_complete"])
+        self.assertEqual(later["coverage_status"], "HOLD_PRECEDING_PAGES_UNVERIFIED")
+        self.assertIsNone(later["next_page"])
+        self.assertFalse(later["ack_accepted"])
+        self.assertEqual(self.db.counts()["observations"], 1)
+
+    def test_manual_resume_window_bounds_and_terminal_ceiling(self):
+        from intranel.four_role_github import _fetch_page
+        invalid = (
+            {"start_page": True}, {"start_page": 0}, {"start_page": 101},
+            {"start_page": 99, "pages": 3},
+            {"pages": True}, {"pages": 4},
+        )
+        for opts in invalid:
+            with self.subTest(opts=opts), self.assertRaises(ValueError):
+                observe_pr_comments(self.db, fetch_page=lambda _: [], **opts)
+        with self.assertRaises(ValueError):
+            _fetch_page(True)
+        with self.assertRaises(ValueError):
+            _fetch_page(101)
+        terminal = observe_pr_comments(
+            self.db, start_page=100, pages=1,
+            fetch_page=lambda _: [{"id": i + 1, "body": "unrelated"}
+                                  for i in range(100)],
+        )
+        self.assertEqual(terminal["coverage_status"], "HOLD_COMMENT_PAGE_CEILING")
+        self.assertFalse(terminal["coverage_complete"])
+        self.assertIsNone(terminal["next_page"])
+        self.assertFalse(terminal["terminal_page_observed"])
+
 if __name__ == "__main__":
     unittest.main()
