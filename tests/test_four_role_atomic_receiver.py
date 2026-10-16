@@ -250,3 +250,43 @@ class AtomicRoleReceiverTests(TestCase):
         self.assertEqual(conflict["classification"], "IDENTITY_COLLISION")
         with self.assertRaisesRegex(CoordinationError, "collision"):
             self.receiver.read_comment_packet_evidence(91, "reply-1")
+
+
+    def test_local_checkpoint_readback_rechecks_staged_and_observed_payloads(self):
+        # An at-rest mutation can leave digest + marker strings untouched.
+        # The bridge must not see clean evidence from unverified body bytes.
+        source = "github:thebrazenbeard/intranel#9/comment/93"
+        self.receiver.receive(self._packet(self.reply), source, comment_id=93)
+        with closing(sqlite3.connect(self.path)) as db:
+            old_envelope = db.execute(
+                "SELECT envelope FROM receiver_staged WHERE message_id='reply-1'"
+            ).fetchone()[0]
+            old_content = db.execute(
+                "SELECT content FROM observed WHERE message_id='reply-1'"
+            ).fetchone()[0]
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute(
+                "UPDATE receiver_staged SET envelope=? WHERE message_id='reply-1'",
+                ('{"spoofed":"frame"}',),
+            )
+        with self.assertRaisesRegex(CoordinationError, "staged|tampered|observation"):
+            self.receiver.read_comment_packet_evidence(93, "reply-1")
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute(
+                "UPDATE receiver_staged SET envelope=? WHERE message_id='reply-1'",
+                (old_envelope,),
+            )
+            db.execute(
+                "UPDATE observed SET content=? WHERE message_id='reply-1'",
+                ('{"spoofed":"observation"}',),
+            )
+        with self.assertRaisesRegex(CoordinationError, "staged|tampered|observation"):
+            self.receiver.read_comment_packet_evidence(93, "reply-1")
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute(
+                "UPDATE observed SET content=? WHERE message_id='reply-1'",
+                (old_content,),
+            )
+        self.assertTrue(
+            self.receiver.read_comment_packet_evidence(93, "reply-1")["local_pair_verified"]
+        )
