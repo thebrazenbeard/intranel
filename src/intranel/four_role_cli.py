@@ -1,0 +1,59 @@
+"""Local INTRANEL/1 four-role observation CLI, not a live transport.
+
+Only locally records supplied packets. Outputs never assert delivery or actor
+authentication. Example:
+ python -m intranel.four_role_cli ingest --ledger inbox.sqlite \
+   --packet request.json --source-ref github:thebrazenbeard/intranel#9/comment/123
+ python -m intranel.four_role_cli inspect --ledger inbox.sqlite \
+   --conversation-id pilot-1 --message-id request-1
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+
+from .four_role_ledger import CoordinationError, FourRoleLedger
+
+
+def run(argv: list[str] | None = None) -> dict:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("ingest", "inspect", "counts"))
+    parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--packet", type=Path)
+    parser.add_argument("--source-ref")
+    parser.add_argument("--conversation-id")
+    parser.add_argument("--message-id")
+    args = parser.parse_args(argv)
+    ledger = FourRoleLedger(args.ledger)
+    if args.command == "ingest":
+        if args.packet is None or args.packet.is_symlink() or not args.packet.is_file():
+            raise CoordinationError("packet must be an existing non-symlink file")
+        if args.packet.stat().st_size > 65536:
+            raise CoordinationError("packet exceeds Intranel message limit")
+        if not args.source_ref:
+            raise CoordinationError("source locator required")
+        packet = json.loads(args.packet.read_text(encoding="utf-8"))
+        if type(packet) is not dict:
+            raise CoordinationError("packet must be JSON object")
+        return ledger.observe(packet, args.source_ref)
+    if args.command == "inspect":
+        if not args.conversation_id or not args.message_id:
+            raise CoordinationError("inspection requires conversation and message IDs")
+        return ledger.classify(args.conversation_id, args.message_id)
+    return ledger.counts()
+
+
+def main() -> int:
+    try:
+        print(json.dumps(run(), sort_keys=True))
+        return 0
+    except (CoordinationError, OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        print(json.dumps({"status": "HELD", "reason": str(exc)[:250],
+                          "delivered": False, "ack_accepted": False}), file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

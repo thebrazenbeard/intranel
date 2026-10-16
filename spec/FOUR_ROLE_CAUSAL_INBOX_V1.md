@@ -1,0 +1,24 @@
+# INTRANEL/1 four-role causal inbox — Integration candidate V1
+
+This code is a **durable receiver-side observation and correlation layer**, NOT an automatic transport, authenticated chat-to-chat connection, agent scheduler, execution engine, or receipt of participant consent.
+
+## Implementation
+
+- `intranel.four_role_ledger.FourRoleLedger` uses a local SQLite DB with distinct canonical packet observations and identity collisions.
+- First observation wins per `(conversation_id, message_id)`. An exact replay returns DUPLICATE. Reuse of an identity with different canonical bytes returns CONFLICT, retains an immutable collision record, and taints *later* inspection of the original message as IDENTITY_COLLISION, even after database reopen.
+- Four roles: `vera:portal`, `vera:integration`, `vera:training`, `vera:vn1`. Only a declared PORTAL REQUEST may target the other three. A declared peer may respond with ACK, WAIT or CONFLICT. These are **asserted roles**, not authenticated senders.
+- This adapter requires an exact `git:owner/repo@40hex` subject, a single `conversation_id`, a parent-request message ID, matching `operation_id`, reverse role routing, and a `payload.request_digest` bound to the exact original canonical `content_digest`. Unmatched, wrong-type, wrong-subject, wrong-digest, wrong-role and expired replies never become correlated. Out-of-order replies are reclassified only after the parent request is observed.
+- Every classification includes `origin_authenticated=false`, `delivered=false`, `ack_accepted=false` and `executed=false`. **Even a causally matched ACK does not prove acceptance.** Independent transport-origin attestation and receiver polling/readback are required separately.
+- The CLI `python -m intranel.four_role_cli ingest|inspect|counts --ledger /path/to/inbox.sqlite3` handles local JSON files. `ingest` requires `--packet` and a separate `--source-ref` locator. That locator is untrusted observation metadata, never a signature.
+
+## Scope and qualification
+
+`python -m unittest discover -s tests -q` runs the baseline INTRANEL/1 parser/admission suite plus the new eight causal-ACK ledger tests and two subprocess/SQLite-restart tests. The isolated exact-head source checkout is based on Intranel PR #9 `9b943a98273a6f0f0c04fa5a642ea002f1c9fc9a`; no existing parser or admission contract was broadened.
+
+The tests prove: valid REQUEST/reply correlation, persistent untrusted replay, wrong-parent/role/round/subject/digest rejection, duplicate and poisoned identity collision, late/expired response, strictly read-only pilot, out-of-order repair without guessing identity, subprocess intake and restart readback. They do **not** prove that actual PORTAL, Training, Integration, or VN1 chats received the packet or are connected through the Communication Bus.
+
+## Next transport gate owned by PORTAL
+
+Connect a **read-only, permission-scoped** GitHub/Communication Bus poller that obtains actual provider event/message identifiers, verifies the wrapper bytes independently and records observations. Existing VN1 polling evidence may be reused only with exact scope and its independent status. Then add authenticated sender binding and explicit recipient-owned processing/acceptance receipts with durable cursor/crash replay; a GitHub comment being visible to a poller does **not** establish acceptance by a ChatGPT session.
+
+PORTAL is lead and owns merge/integration sequencing. This Integration candidate does not edit the PORTAL-owned PR #9 branch, enable services, mutate credentials, grant authority, or perform protected effects.
