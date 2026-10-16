@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from pathlib import Path
 import sys
 
@@ -24,13 +25,18 @@ def run(argv: list[str] | None = None) -> dict:
     parser.add_argument("--packet", type=Path)
     parser.add_argument("--source-ref")
     parser.add_argument("--pages", type=int, default=1, help="Bounded read-only GitHub PR9 poll")
+    parser.add_argument("--start-page", type=int, default=1,
+                        help="Explicit GitHub comment page window; no persisted cursor")
     parser.add_argument("--conversation-id")
     parser.add_argument("--message-id")
     parser.add_argument("--staging-ledger", type=Path,
                         help="PORTAL's recipient-local inbox for read-only consistency audit")
     parser.add_argument("--expected-target",
                         help="Receiver-owned Intranel role binding")
+    parser.add_argument("--outbound-request", action="store_true")
     args = parser.parse_args(argv)
+    if args.outbound_request and (not args.expected_target or args.command != "ingest"):
+        raise CoordinationError("outbound-request requires receiver ingest mode")
     if args.command == "reconcile":
         from .four_role_reconcile import audit_local_inbox
         if args.staging_ledger is None or not args.expected_target:
@@ -38,7 +44,17 @@ def run(argv: list[str] | None = None) -> dict:
         # Do not initialize a ledger here: audit may not create files/DDL.
         return audit_local_inbox(args.ledger, args.staging_ledger,
                                  expected_target=args.expected_target)
-    ledger = FourRoleLedger(args.ledger)
+    if not args.expected_target and args.ledger.is_file() and not args.ledger.is_symlink():
+        with sqlite3.connect(f"file:{args.ledger}?mode=ro", uri=True) as db:
+            bound = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                               "AND name='receiver_binding'").fetchone()
+        if bound is not None:
+            raise CoordinationError("receiver-bound ledger requires --expected-target")
+    if args.expected_target:
+        from .four_role_receiver import AtomicRoleReceiver
+        ledger = AtomicRoleReceiver(args.ledger, expected_target=args.expected_target)
+    else:
+        ledger = FourRoleLedger(args.ledger)
     if args.command == "ingest":
         if args.packet is None or args.packet.is_symlink() or not args.packet.is_file():
             raise CoordinationError("packet must be an existing non-symlink file")
@@ -49,15 +65,30 @@ def run(argv: list[str] | None = None) -> dict:
         packet = json.loads(args.packet.read_text(encoding="utf-8"))
         if type(packet) is not dict:
             raise CoordinationError("packet must be JSON object")
+        if args.expected_target:
+            if args.outbound_request:
+                return ledger.observe_outbound_request(packet, args.source_ref)
+            from .coordination import wrap
+            from .message import parse_message
+            return ledger.receive(wrap(parse_message(packet)), args.source_ref)
         return ledger.observe(packet, args.source_ref)
     if args.command == "poll":
         from .four_role_github import observe_pr_comments
-        return observe_pr_comments(ledger, pages=args.pages)
+        if args.expected_target:
+            from .coordination import wrap
+            from .message import parse_message
+            return observe_pr_comments(ledger, pages=args.pages,
+                start_page=args.start_page,
+                ingest_packet=lambda packet, source: ledger.receive(
+                    wrap(parse_message(packet)), source,
+                    comment_id=int(source.rsplit("/", 1)[-1])))
+        return observe_pr_comments(ledger, pages=args.pages,
+                                   start_page=args.start_page)
     if args.command == "inspect":
         if not args.conversation_id or not args.message_id:
             raise CoordinationError("inspection requires conversation and message IDs")
         return ledger.classify(args.conversation_id, args.message_id)
-    return ledger.counts()
+    return ledger.receiver_counts() if args.expected_target else ledger.counts()
 
 
 def main() -> int:
