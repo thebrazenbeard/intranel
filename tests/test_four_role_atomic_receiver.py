@@ -232,3 +232,21 @@ class AtomicRoleReceiverTests(TestCase):
                        ("0"*64,))
         with self.assertRaisesRegex(CoordinationError, "does not match"):
             self.receiver.read_comment_packet_evidence(81, "reply-1")
+
+    def test_collided_message_must_not_return_clean_local_packet_evidence(self):
+        from copy import deepcopy
+        source = "github:thebrazenbeard/intranel#9/comment/91"
+        self.receiver.receive(self._packet(self.reply), source, comment_id=91)
+        self.assertTrue(
+            self.receiver.read_comment_packet_evidence(91, "reply-1")["local_pair_verified"]
+        )
+        edited = deepcopy(self.reply)
+        edited["payload"]["finding"] = "edited packet identity"
+        conflict = self.receiver.receive(
+            self._packet(edited),
+            "github:thebrazenbeard/intranel#9/comment/92", comment_id=92,
+        )
+        self.assertEqual(conflict["ingest"], "CONFLICT")
+        self.assertEqual(conflict["classification"], "IDENTITY_COLLISION")
+        with self.assertRaisesRegex(CoordinationError, "collision"):
+            self.receiver.read_comment_packet_evidence(91, "reply-1")
