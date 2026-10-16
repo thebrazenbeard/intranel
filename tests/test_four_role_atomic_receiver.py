@@ -211,3 +211,24 @@ class AtomicRoleReceiverTests(TestCase):
             self.receiver.receive(packet, source, comment_id=60)
         self.assertEqual(self._rows(), (1, 1))
         self.assertEqual(self.receiver.comment_packet_checkpoint()["packet_markers"], 0)
+
+
+    def test_exact_comment_packet_evidence_does_not_claim_sender_or_provider(self):
+        ref = "github:thebrazenbeard/intranel#9/comment/81"
+        self.receiver.receive(self._packet(self.reply), ref, comment_id=81)
+        current = self.receiver.read_comment_packet_evidence(81, "reply-1")
+        self.assertEqual(current["conversation_id"], CONVERSATION)
+        self.assertEqual(current["receiver_target"], "vera:portal")
+        self.assertTrue(current["local_pair_verified"])
+        self.assertFalse(current["origin_authenticated"])
+        self.assertFalse(current["provider_snapshot_attested"])
+        self.assertFalse(current["ack_accepted"])
+        with self.assertRaisesRegex(CoordinationError, "not locally checkpointed"):
+            self.receiver.read_comment_packet_evidence(82, "reply-1")
+        with self.assertRaisesRegex(CoordinationError, "invalid packet evidence key"):
+            self.receiver.read_comment_packet_evidence(True, "reply-1")
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("UPDATE receiver_staged SET semantic_sha256=? WHERE message_id='reply-1'",
+                       ("0"*64,))
+        with self.assertRaisesRegex(CoordinationError, "does not match"):
+            self.receiver.read_comment_packet_evidence(81, "reply-1")

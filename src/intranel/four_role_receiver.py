@@ -340,6 +340,55 @@ class AtomicRoleReceiver(FourRoleLedger):
         if msg.message_id != mid or content_digest(msg) != digest:
             raise CoordinationError("staged receipt semantics mismatch: HOLD")
 
+    def read_comment_packet_evidence(self, comment_id: int,
+                                     message_id: str) -> dict[str, Any]:
+        """Read exact local packet/staging provenance; never authenticate sender.
+
+        A single SELECT within one SQLite read transaction checks the local
+        marker, observed packet and receiver stage. No GitHub snapshot proof.
+        """
+        if (type(comment_id) is not int or not 1 <= comment_id <= 9223372036854775807
+                or type(message_id) is not str or not message_id):
+            raise CoordinationError("invalid packet evidence key")
+        source_ref = f"github:thebrazenbeard/intranel#9/comment/{comment_id}"
+        with self._db() as db:
+            db.execute("BEGIN")
+            row = db.execute(
+                """SELECT p.conversation_id,p.semantic_sha256,
+                          o.digest AS observation_digest,o.source_ref,
+                          s.semantic_sha256 AS staged_digest,s.target
+                   FROM receiver_comment_packet AS p
+                   LEFT JOIN observed AS o
+                     ON o.conversation_id=p.conversation_id
+                    AND o.message_id=p.message_id
+                   LEFT JOIN receiver_staged AS s
+                     ON s.conversation_id=p.conversation_id
+                    AND s.message_id=p.message_id
+                   WHERE p.comment_id=? AND p.message_id=?""",
+                (comment_id, message_id),
+            ).fetchone()
+            if row is None:
+                raise CoordinationError("comment packet not locally checkpointed")
+            if (row["observation_digest"] != row["semantic_sha256"]
+                    or row["staged_digest"] != row["semantic_sha256"]
+                    or row["target"] != self.expected_target
+                    or row["source_ref"] != source_ref):
+                raise CoordinationError("comment packet evidence does not match local stage")
+            return {
+                "comment_id": comment_id,
+                "conversation_id": row["conversation_id"],
+                "message_id": message_id,
+                "semantic_sha256": row["semantic_sha256"],
+                "source_ref": source_ref,
+                "receiver_target": self.expected_target,
+                "local_pair_verified": True,
+                "origin_authenticated": False,
+                "provider_snapshot_attested": False,
+                "delivered": False,
+                "ack_accepted": False,
+                "executed": False,
+            }
+
     def comment_packet_checkpoint(self) -> dict[str, int | None | bool]:
         """Local packet-marker readback, never complete provider coverage."""
         with self._db() as db:
