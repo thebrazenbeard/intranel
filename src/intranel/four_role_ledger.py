@@ -150,6 +150,17 @@ class FourRoleLedger:
             ).fetchone()
             if parent is None:
                 return result
+            # A reused parent identity with conflicting content poisons every
+            # dependent reply, even if its digest matched the first version.
+            # Never keep describing a reply as causally matched after the
+            # purported coordinator REQUEST becomes identity-ambiguous.
+            poisoned_parent = db.execute(
+                "SELECT 1 FROM collisions WHERE conversation_id=? AND message_id=? LIMIT 1",
+                (m.conversation_id, m.parent_message_id),
+            ).fetchone()
+            if poisoned_parent is not None:
+                result["classification"] = "PARENT_IDENTITY_COLLISION"
+                return result
             req = parse_message(json.loads(parent["content"]))
             if req.performative is not Performative.REQUEST:
                 result["classification"] = "WRONG_PARENT_TYPE"

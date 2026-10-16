@@ -109,6 +109,37 @@ class FourRoleLedgerTests(unittest.TestCase):
         self.assertEqual(FourRoleLedger(self.file).classify(CONVERSATION,"request-1")["classification"],
                          "IDENTITY_COLLISION")
 
+    def test_poisoned_parent_request_revokes_earlier_matched_ack(self):
+        # A replayed REQUEST identity with conflicting semantics must poison
+        # every child response, including already recorded/cached-looking ACKs.
+        req = request()
+        child = reply(req)
+        self.ledger.observe(req, "github:portal-original")
+        first = self.ledger.observe(child, "github:untrusted-ack")
+        self.assertEqual(first["classification"], "CAUSALLY_MATCHED_UNAUTHENTICATED")
+        forged = deepcopy(req)
+        forged["payload"]["task"] = "attacker changed coordinator request"
+        collision = self.ledger.observe(forged, "github:spoofed-portal")
+        self.assertEqual(collision["classification"], "IDENTITY_COLLISION")
+        refreshed = self.ledger.classify(CONVERSATION, "reply-1")
+        self.assertEqual(refreshed["classification"], "PARENT_IDENTITY_COLLISION")
+        self.assertFalse(refreshed["ack_accepted"])
+        self.assertFalse(refreshed["delivered"])
+        restarted = FourRoleLedger(self.file).classify(CONVERSATION, "reply-1")
+        self.assertEqual(restarted["classification"], "PARENT_IDENTITY_COLLISION")
+
+    def test_out_of_order_child_of_poisoned_parent_never_correlates(self):
+        req = request()
+        child = reply(req)
+        self.assertEqual(self.ledger.observe(child, "github:reply")["classification"],
+                         "UNMATCHED_REPLY")
+        self.ledger.observe(req, "github:request")
+        forged = deepcopy(req)
+        forged["payload"]["task"] = "conflicting request"
+        self.ledger.observe(forged, "github:collision")
+        self.assertEqual(self.ledger.classify(CONVERSATION, "reply-1")["classification"],
+                         "PARENT_IDENTITY_COLLISION")
+
     def test_unparented_ack_protected_effect_and_unpinned_subject_fail_closed(self):
         req=request()
         for item in (

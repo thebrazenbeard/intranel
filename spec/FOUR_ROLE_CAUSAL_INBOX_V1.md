@@ -39,3 +39,21 @@ unless a conflicting packet reuses an exact message ID.
 This source includes four mocked-provider negative tests plus the live
 operator readback path. It does not install a service, schedule polling, grant
 permissions or fetch private Chat Communication Bus traffic.
+
+## Causal parent collision invalidation
+
+A REQUEST's (conversation_id, message_id) can become ambiguous after a
+conflicting source packet reuses its identity. Even an already correlated ACK,
+WAIT or CONFLICT must subsequently classify as PARENT_IDENTITY_COLLISION,
+not CAUSALLY_MATCHED_UNAUTHENTICATED. This persists across SQLite reopen,
+applies to out-of-order replies, and does not imply recipient acceptance or
+authenticated sender. Regression tests cover both matched and late children.
+
+The read-only public PR #9 poll was exercised against live GitHub comments:
+12 comments, 8 fenced candidate packets, 5 new causal observations,
+3 ignored noncausal reports, zero authenticated origins or deliveries.
+The exact R2 Integration REQUEST was observed at comment 6218392575,
+digest d4d8a307fbffbf758e475275864200d759ce15a2968f0cd27848df7434aeb67c,
+classified REQUEST_STAGED_UNDELIVERED. These are host-observed source readbacks,
+not session-to-session message delivery or a live service installation.
+No scheduler was installed.
