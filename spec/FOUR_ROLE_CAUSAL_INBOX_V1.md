@@ -75,3 +75,36 @@ observed 16 comments and 7 qualifying stored packet identities.
 The ledger independently classified both replies as requiring
 reconciliation, never as two participant acceptances. This is a
 source-observed coordination correction, not an authorization to merge.
+
+## Read-only two-ledger consistency audit (Integration follow-on)
+
+PORTAL PR #9 and Integration PR #10 currently persist **separate** SQLite
+stores. They are not a single authoritative inbox, do not share a transaction
+boundary, and can diverge after a process crash or incomplete ingestion.
+
+The **source-only** operator command is:
+
+    python -m intranel.four_role_cli reconcile --ledger observed.sqlite3 --staging-ledger portal-inbox.sqlite3 --expected-target vera:portal
+
+The reconciliation module opens both **existing** databases read-only,
+never initializes either store or silently transfers records, and compares
+the recipient-local staged envelope with the observer's Intranel canonical
+digest and exact (conversation_id, message_id) source. It reports
+HOLD_STORE_DIVERGENCE for missing staged/observed messages, mismatched or
+tampered canonical content, poisoned causal parents, duplicate reply claims,
+reused message IDs across rounds, or wrong recipient binding. Zero evidence
+is HOLD_EMPTY_SNAPSHOT, not agreement. A clean comparison reports
+SNAPSHOT_AGREEMENT_UNATTESTED: it is **not** evidence of message delivery,
+sender authentication, authorization, or a cross-database atomic commit.
+
+This is a fail-closed **diagnostic**, not the completed consolidation. Two
+separate read transactions can observe different instants when concurrent
+writers run. The returned atomic_cross_store_transaction field is always
+false. PORTAL should choose a single authoritative receiver-owned store
+(or a complete journal-reconciliation contract) before any resident
+transport or accepted ACK state is installed.
+
+Eleven adversarial reconciliation tests cover split writes/crash recovery,
+same-role sibling claims, forged/tampered content, collision-tainted parent,
+cross-round message ID reuse, empty stores, wrong target, absent files,
+and subprocess CLI restart/readback. They do not qualify a remote service.

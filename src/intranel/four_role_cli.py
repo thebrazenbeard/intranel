@@ -19,14 +19,25 @@ from .four_role_ledger import CoordinationError, FourRoleLedger
 
 def run(argv: list[str] | None = None) -> dict:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("ingest", "inspect", "counts", "poll"))
+    parser.add_argument("command", choices=("ingest", "inspect", "counts", "poll", "reconcile"))
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--packet", type=Path)
     parser.add_argument("--source-ref")
     parser.add_argument("--pages", type=int, default=1, help="Bounded read-only GitHub PR9 poll")
     parser.add_argument("--conversation-id")
     parser.add_argument("--message-id")
+    parser.add_argument("--staging-ledger", type=Path,
+                        help="PORTAL's recipient-local inbox for read-only consistency audit")
+    parser.add_argument("--expected-target",
+                        help="Receiver-owned Intranel role binding")
     args = parser.parse_args(argv)
+    if args.command == "reconcile":
+        from .four_role_reconcile import audit_local_inbox
+        if args.staging_ledger is None or not args.expected_target:
+            raise CoordinationError("reconcile requires staging ledger and exact receiver role")
+        # Do not initialize a ledger here: audit may not create files/DDL.
+        return audit_local_inbox(args.ledger, args.staging_ledger,
+                                 expected_target=args.expected_target)
     ledger = FourRoleLedger(args.ledger)
     if args.command == "ingest":
         if args.packet is None or args.packet.is_symlink() or not args.packet.is_file():
