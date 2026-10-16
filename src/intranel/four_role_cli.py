@@ -19,10 +19,11 @@ from .four_role_ledger import CoordinationError, FourRoleLedger
 
 def run(argv: list[str] | None = None) -> dict:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("ingest", "inspect", "counts"))
+    parser.add_argument("command", choices=("ingest", "inspect", "counts", "poll"))
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--packet", type=Path)
     parser.add_argument("--source-ref")
+    parser.add_argument("--pages", type=int, default=1, help="Bounded read-only GitHub PR9 poll")
     parser.add_argument("--conversation-id")
     parser.add_argument("--message-id")
     args = parser.parse_args(argv)
@@ -38,6 +39,9 @@ def run(argv: list[str] | None = None) -> dict:
         if type(packet) is not dict:
             raise CoordinationError("packet must be JSON object")
         return ledger.observe(packet, args.source_ref)
+    if args.command == "poll":
+        from .four_role_github import observe_pr_comments
+        return observe_pr_comments(ledger, pages=args.pages)
     if args.command == "inspect":
         if not args.conversation_id or not args.message_id:
             raise CoordinationError("inspection requires conversation and message IDs")

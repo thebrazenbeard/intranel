@@ -22,3 +22,20 @@ The tests prove: valid REQUEST/reply correlation, persistent untrusted replay, w
 Connect a **read-only, permission-scoped** GitHub/Communication Bus poller that obtains actual provider event/message identifiers, verifies the wrapper bytes independently and records observations. Existing VN1 polling evidence may be reused only with exact scope and its independent status. Then add authenticated sender binding and explicit recipient-owned processing/acceptance receipts with durable cursor/crash replay; a GitHub comment being visible to a poller does **not** establish acceptance by a ChatGPT session.
 
 PORTAL is lead and owns merge/integration sequencing. This Integration candidate does not edit the PORTAL-owned PR #9 branch, enable services, mutate credentials, grant authority, or perform protected effects.
+
+
+## Read-only public PR #9 ingress
+
+Run python -m intranel.four_role_cli poll --ledger inbox.sqlite3 --pages 1.
+The poller fetches only the public thebrazenbeard/intranel PR #9
+GitHub comment endpoint, with bounded pagination, response sizes, and a
+bounded count of explicitly fenced JSON packets per comment. Arbitrary prose
+and noncausal REPORT messages are not admitted as causal ACKs; malformed or
+forged packets are rejected, never executed. Every admitted observation gets
+a provider comment-ID locator, but this is still not authenticated source
+identity, recipient polling or task acceptance. Re-polling is idempotent
+unless a conflicting packet reuses an exact message ID.
+
+This source includes four mocked-provider negative tests plus the live
+operator readback path. It does not install a service, schedule polling, grant
+permissions or fetch private Chat Communication Bus traffic.
