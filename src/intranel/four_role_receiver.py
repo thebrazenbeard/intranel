@@ -356,7 +356,9 @@ class AtomicRoleReceiver(FourRoleLedger):
             row = db.execute(
                 """SELECT p.conversation_id,p.semantic_sha256,
                           o.digest AS observation_digest,o.source_ref,
-                          s.semantic_sha256 AS staged_digest,s.target
+                          o.content AS observation_content,
+                          s.semantic_sha256 AS staged_digest,s.target,
+                          s.envelope AS staged_envelope
                    FROM receiver_comment_packet AS p
                    LEFT JOIN observed AS o
                      ON o.conversation_id=p.conversation_id
@@ -381,6 +383,24 @@ class AtomicRoleReceiver(FourRoleLedger):
                     or row["target"] != self.expected_target
                     or row["source_ref"] != source_ref):
                 raise CoordinationError("comment packet evidence does not match local stage")
+            try:
+                # Check the actual persisted bytes, not just copied hash
+                # strings. A modified envelope/observed content can retain
+                # all four matching digest fields in SQLite.
+                msg = parse_message(json.loads(row["observation_content"]))
+                packed = json.dumps(
+                    wrap(msg), ensure_ascii=False, sort_keys=True,
+                    separators=(",", ":"),
+                )
+                if (msg.conversation_id != row["conversation_id"]
+                        or msg.message_id != message_id
+                        or str(msg.target) != self.expected_target
+                        or content_digest(msg) != row["semantic_sha256"]
+                        or canonical_json_bytes(msg) != row["observation_content"]
+                        or row["staged_envelope"] != packed):
+                    raise CoordinationError("staged or observed packet tampered: HOLD")
+            except (TypeError, ValueError, KeyError) as exc:
+                raise CoordinationError("staged or observed packet tampered: HOLD") from exc
             return {
                 "comment_id": comment_id,
                 "conversation_id": row["conversation_id"],
