@@ -140,6 +140,27 @@ class FourRoleLedgerTests(unittest.TestCase):
         self.assertEqual(self.ledger.classify(CONVERSATION, "reply-1")["classification"],
                          "PARENT_IDENTITY_COLLISION")
 
+    def test_two_distinct_reply_claims_same_role_and_parent_require_reconciliation(self):
+        req = request()
+        self.ledger.observe(req, "github:portal-request")
+        first = reply(req, message_id="ack-integration-original")
+        second = reply(req, message_id="ack-integration-update",
+                       payload={"request_digest": content_digest(parse_message(req)),
+                                "finding": "updated evidence, same responder"})
+        self.assertEqual(
+            self.ledger.observe(first, "github:first")["classification"],
+            "CAUSALLY_MATCHED_UNAUTHENTICATED")
+        second_seen = self.ledger.observe(second, "github:second")
+        self.assertEqual(second_seen["classification"],
+                         "MULTIPLE_REPLY_CLAIMS_RECONCILIATION_REQUIRED")
+        original = FourRoleLedger(self.file).classify(CONVERSATION, "ack-integration-original")
+        self.assertEqual(original["classification"],
+                         "MULTIPLE_REPLY_CLAIMS_RECONCILIATION_REQUIRED")
+        for seen in (second_seen, original):
+            self.assertFalse(seen["ack_accepted"])
+            self.assertFalse(seen["delivered"])
+        self.assertEqual(self.ledger.counts()["observations"], 3)
+
     def test_unparented_ack_protected_effect_and_unpinned_subject_fail_closed(self):
         req=request()
         for item in (

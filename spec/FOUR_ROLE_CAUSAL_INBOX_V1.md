@@ -57,3 +57,21 @@ digest d4d8a307fbffbf758e475275864200d759ce15a2968f0cd27848df7434aeb67c,
 classified REQUEST_STAGED_UNDELIVERED. These are host-observed source readbacks,
 not session-to-session message delivery or a live service installation.
 No scheduler was installed.
+
+## Competing child replies from one role
+
+Different message IDs from one declared role addressed to one coordinator
+REQUEST are separate untrusted claims but **not two independent votes**.
+The ledger now classifies both original and later replies
+MULTIPLE_REPLY_CLAIMS_RECONCILIATION_REQUIRED until recipient-owned review
+decides whether they represent updates, conflicts, or errors. It preserves
+both messages and their exact hashes and does not impose an arrival-order
+winner. No delivery, authenticity, or acceptance can be inferred.
+
+Reproduced on the real PR #9 R2 thread: Integration had posted original
+ACK comment 6218559316 and later code-progress ACK comment 6218611330,
+both bound to parent portal-r2-integration-20261016. Live PR9 polling
+observed 16 comments and 7 qualifying stored packet identities.
+The ledger independently classified both replies as requiring
+reconciliation, never as two participant acceptances. This is a
+source-observed coordination correction, not an authorization to merge.

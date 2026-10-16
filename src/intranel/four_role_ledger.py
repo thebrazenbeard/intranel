@@ -178,6 +178,22 @@ class FourRoleLedger:
                 if datetime.now(timezone.utc) > expiry:
                     result["classification"] = "EXPIRED_REQUEST"
                     return result
+            # Distinct message IDs from the same self-declared participant
+            # referencing one coordinator request are revisions or competing
+            # claims, not additional independent votes/acknowledgments.
+            # Do not choose a winner from arrival order or GitHub authorship.
+            siblings = db.execute(
+                "SELECT content FROM observed WHERE conversation_id=? AND message_id<>?",
+                (m.conversation_id, m.message_id),
+            ).fetchall()
+            for sibling in siblings:
+                other = parse_message(json.loads(sibling["content"]))
+                if (other.performative in _REPLIES
+                        and other.origin == m.origin
+                        and other.target == m.target
+                        and other.parent_message_id == m.parent_message_id):
+                    result["classification"] = "MULTIPLE_REPLY_CLAIMS_RECONCILIATION_REQUIRED"
+                    return result
             result["classification"] = "CAUSALLY_MATCHED_UNAUTHENTICATED"
             result["parent_request_digest"] = parent["digest"]
             result["reply_performative"] = m.performative.value
