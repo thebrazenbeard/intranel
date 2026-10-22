@@ -88,5 +88,43 @@ class FourRoleCLITests(unittest.TestCase):
         self.assertEqual(counts["observations"], 0)
 
 
+    def test_bound_receiver_cli_rejects_legacy_and_explicit_ingest_works(self):
+        from contextlib import closing
+        import sqlite3
+        from intranel.four_role_receiver import AtomicRoleReceiver
+        AtomicRoleReceiver(self.db, expected_target="vera:portal")
+        req = self.packet("bound-request.json", request())
+        ans = self.packet("bound-reply.json", reply(request()))
+        for command in (
+            ("ingest", "--packet", ans, "--source-ref", "github:legacy"),
+            ("poll",),
+            ("inspect", "--conversation-id", CONVERSATION, "--message-id", "reply-1"),
+        ):
+            code, result = self.invoke(*command)
+            self.assertEqual(code, 2, result)
+            self.assertEqual(result["status"], "HELD")
+        with closing(sqlite3.connect(self.db)) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM observed").fetchone()[0], 0)
+        code, parent = self.invoke(
+            "ingest", "--expected-target", "vera:portal", "--outbound-request",
+            "--packet", req, "--source-ref", "local:coordinator"
+        )
+        self.assertEqual(code, 0, parent)
+        code, received = self.invoke(
+            "ingest", "--expected-target", "vera:portal", "--packet", ans,
+            "--source-ref", "github:peer"
+        )
+        self.assertEqual(code, 0, received)
+        self.assertEqual(received["classification"], "CAUSALLY_MATCHED_UNAUTHENTICATED")
+        self.assertFalse(received["ack_accepted"])
+        with closing(sqlite3.connect(self.db)) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM receiver_staged").fetchone()[0], 1)
+        code, replay = self.invoke(
+            "ingest", "--expected-target", "vera:portal", "--packet", ans,
+            "--source-ref", "github:peer"
+        )
+        self.assertEqual(code, 0, replay)
+        self.assertEqual(replay["ingest"], "DUPLICATE")
+
 if __name__ == "__main__":
     unittest.main()
