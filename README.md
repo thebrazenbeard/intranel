@@ -35,6 +35,38 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 - automatic proof that a receipt's claimed effect is true;
 - hidden reasoning transfer.
 
+## Optional four-role coordination pilot (not activated)
+
+The source tree includes a bounded local pilot for `vera:portal`,
+`vera:integration`, `vera:training`, and `vera:vn1`. Its canonical wrappers,
+causal SQLite observation ledger, atomic receiver staging, and read-only
+reconciliation preserve message identity, target, and parent relationships.
+The opt-in CLI can ingest local JSON packets or explicitly poll public Intranel
+PR #9 comments; it does not run a background service.
+Its poller rejects duplicate JSON keys and reports incomplete coverage rather
+than silently truncating over-limit or undecodable comments.
+Stored observation content must still match its recorded canonical digest;
+at-rest mismatch causes a local HOLD rather than a correlated reply. Expired
+reply envelopes are likewise held as `EXPIRED_REPLY` even when the parent is
+unexpired. These are evidence checks, not database-writer authentication.
+
+An observed or causally matched reply remains **unauthenticated and unverified**:
+it does not establish delivery, accepted ACK, execution, or authority. A
+receiver-bound ledger requires an explicit `--expected-target`; the local
+receiver only stages untrusted evidence. No Chat Communication Bus deployment,
+credential installation, scheduled polling, or production transport is provided.
+`local_pair_verified` describes consistency within a SQLite read snapshot only:
+a concurrent writer can commit a collision after that snapshot. It is not
+currentness or acceptance authority. Any future protected effect must perform
+its own transactionally synchronized currentness and authorization check; an
+uncoordinated readback would still race.
+
+See [four-role coordination](spec/FOUR_ROLE_COORDINATION_V1.md),
+[causal inbox](spec/FOUR_ROLE_CAUSAL_INBOX_V1.md), and
+[atomic receiver](spec/FOUR_ROLE_ATOMIC_RECEIVER_V1.md) for the bounded
+contracts; [Integration's V1 continuation](docs/continuation/INTRANEL_INTEGRATION_CONTINUATION_20261016_V1.md)
+records the historical pilot context, not live operation.
+
 ## Verify locally
 
 ```bash
