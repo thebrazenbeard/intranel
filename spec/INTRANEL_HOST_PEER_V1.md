@@ -47,6 +47,10 @@ noncanonical, duplicate-key, invalid, expired, wrong-host, wrong-actor,
 non-`QUERY/REPORT`, non-`READ_ONLY`, and non-`OPEN` data before durable commit.
 Bounded but excessively nested JSON is a protocol conflict, not an uncaught
 parser recursion failure.
+The SSH forced-command receiver additionally requires EOF immediately after
+one complete frame, before SQLite mutation and ACK. A second frame or suffix
+is rejected atomically; the configured sshd session timeout must bound a
+malicious sender that refuses to close stdin.
 
 `HostPeerStore.queue` transactionally writes an exact sender message/digest and
 target as `PENDING`, keyed by semantic message ID. A caller sends the returned

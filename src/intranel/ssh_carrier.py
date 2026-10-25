@@ -143,6 +143,12 @@ def receive_forced_command(store: HostPeerStore, source: BinaryIO, sink: BinaryI
     packet = read_frame(source)
     if packet is None:
         raise HostPeerConflict("missing SSH host-peer frame")
+    # The authenticated command is a one-packet transaction.  The sender
+    # closes stdin after the frame; require EOF before any durable mutation
+    # so a trailing frame or covert bytes cannot be silently ignored.
+    # Production sshd must separately enforce a session deadline.
+    if source.read(1):
+        raise HostPeerConflict("SSH receiver rejects trailing frame bytes")
     ack = store.receive(packet, observed_peer=peer)
     write_frame(sink, ack)
 

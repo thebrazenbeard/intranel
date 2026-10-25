@@ -50,6 +50,10 @@ that admits only one `ssh-ed25519` public-key auth record from `SSH_USER_AUTH`,
 pins the authenticated **client** key to a logical host, and uses the actual
 OS UID/account. These are **two different keys** and two different policies.
 The server's host key alone does not prove who connected to it.
+The forced receiver requires stream EOF after exactly one framed packet
+*before* persisting anything or returning an ACK. Its caller closes stdin;
+the required sshd session timeout must independently bound a peer that stalls
+instead of closing the stream.
 
 **Not installed or qualified:** The receiver's auth-info file is writable by
 its login UID and can be forged if the account permits shell/other commands;

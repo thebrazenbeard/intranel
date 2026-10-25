@@ -98,6 +98,24 @@ class SSHCarrierTests(unittest.TestCase):
                                    {_FINGERPRINT: "lappy"})
         self.assertEqual(receiver.received_count(), 0)
 
+    def test_forced_command_rejects_second_frame_and_trailing_bytes_atomically(self):
+        from intranel.ssh_carrier import current_os_account
+        from intranel.canonical import canonical_json_bytes
+
+        receiver = HostPeerStore(Path(self.tmp.name) / "trailing.db", local_host="vn1",
+                                 trusted_peers={"lappy": (current_os_account(), _FINGERPRINT)})
+        packet = canonical_json_bytes(msg())
+        first = io.BytesIO()
+        write_frame(first, packet)
+        first_bytes = first.getvalue()
+        second = io.BytesIO()
+        write_frame(second, packet)
+        for suffix in (second.getvalue(), b"ignored"):
+            with self.subTest(suffix=suffix[:8]), self.assertRaises(HostPeerConflict):
+                receive_forced_command(receiver, io.BytesIO(first_bytes + suffix),
+                                       io.BytesIO(), self.auth, {_FINGERPRINT: "lappy"})
+            self.assertEqual(receiver.received_count(), 0)
+
     def test_client_pins_exact_server_host_key_and_rejects_alias_collision(self):
         known_hosts = Path(self.tmp.name) / "known_hosts"
         line = f"vn1.tail.test ssh-ed25519 {_KEY_TEXT}\n"
