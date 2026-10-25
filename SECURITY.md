@@ -19,3 +19,7 @@ Authentication proves only what the authentication mechanism actually proves. It
 ## Reporting
 
 Security defects should be handled in the repository's private review/issue surfaces and should avoid publishing real secrets or exploit credentials in examples.
+
+## Repository editor startup containment
+
+Do not introduce `.vscode` folder-open tasks, automatic task consent, or disguised executables in `public/fonts`. The source-only CI guard runs before dependency installation on Ubuntu and Windows. It cannot attest historical editor execution or the condition of any workstation that previously opened this repository.
