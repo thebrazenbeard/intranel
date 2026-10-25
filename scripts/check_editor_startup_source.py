@@ -27,23 +27,41 @@ def _decoded_source(path: Path) -> str:
 def scan(root: Path) -> list[str]:
     """Report source-controlled editor auto-execution and disguised font assets."""
     issues: list[str] = []
-    editor = root / ".vscode"
-    if editor.is_symlink():
-        issues.append(".vscode: symbolic link is not permitted")
-    elif editor.exists():
-        for path in sorted(editor.rglob("*")):
-            relative = path.relative_to(root).as_posix()
-            if path.is_symlink():
-                issues.append(f"{relative}: symbolic link is not permitted")
-                continue
-            if not path.is_file():
-                continue
-            contents = _decoded_source(path)
-            if "folderopen" in contents:
-                issues.append(f"{relative}: folder-open execution is forbidden")
-            if "task.allowautomatictasks" in contents:
-                issues.append(f"{relative}: automatic task consent is forbidden")
+    editor_dirs = {root / ".vscode", *root.rglob(".vscode")}
+    checked_files: set[Path] = set()
+    for editor in sorted(editor_dirs):
+        relative = editor.relative_to(root).as_posix()
+        if editor.is_symlink():
+            issues.append(f"{relative}: symbolic link is not permitted")
+            continue
+        if editor.exists():
+            for path in sorted(editor.rglob("*")):
+                item = path.relative_to(root).as_posix()
+                if path.is_symlink():
+                    issues.append(f"{item}: symbolic link is not permitted")
+                elif path.is_file():
+                    checked_files.add(path)
 
+    # VS Code also accepts tasks/settings inside standalone .code-workspace files.
+    # This includes nested workspaces, without opening or interpreting them.
+    for workspace in root.rglob("*.code-workspace"):
+        if workspace.is_symlink():
+            issues.append(
+                f"{workspace.relative_to(root).as_posix()}: symbolic link is not permitted"
+            )
+        elif workspace.is_file():
+            checked_files.add(workspace)
+
+    for path in sorted(checked_files):
+        relative = path.relative_to(root).as_posix()
+        contents = _decoded_source(path)
+        if "folderopen" in contents:
+            issues.append(f"{relative}: folder-open execution is forbidden")
+        if "task.allowautomatictasks" in contents:
+            issues.append(f"{relative}: automatic task consent is forbidden")
+
+    if (root / "public").is_symlink():
+        issues.append("public: symbolic link is not permitted")
     fonts = root / "public" / "fonts"
     if fonts.is_symlink():
         issues.append("public/fonts: symbolic link is not permitted")
