@@ -35,6 +35,12 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 - automatic proof that a receipt's claimed effect is true;
 - hidden reasoning transfer.
 
+## Source-stage safety and Bus boundary
+
+The optional [`BUS_PROFILE_V1`](adapters/BUS_PROFILE_V1.md) describes carrying a canonical `INTRANEL/1` packet through an existing Chat Communication Bus writer lane. It does not install a Bus writer or recipient, register an authorized worker, grant effect authority, or independently verify a `RECEIPT`. The CCB writer-local `message_id` is distinct from the Intranel semantic `message_id`; CCB's outer predecessor linkage is distinct from the Intranel semantic parent relationship.
+
+A source checkout is not permission to execute editor startup tasks. Keep automatic workspace tasks disabled until a checked-out commit's `.vscode` settings/tasks and nonstandard executable assets have been inspected; this repository's security regression guard detects the known concealed folder-open route. Treat installed/runtime state as UNKNOWN until independently observed.
+
 ## Verify locally
 
 ```bash
