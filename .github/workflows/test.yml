@@ -3,6 +3,7 @@ name: test
 on:
   push:
     branches:
+      - main
       - work/intranel-v1-protocol-20260917
   pull_request:
 

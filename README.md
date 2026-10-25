@@ -47,6 +47,6 @@ See `spec/INTRANEL_1.md` for normative semantics and `docs/superpowers/specs/202
 
 ## Source-only editor startup safety
 
-CI checks the checked-out source before installing dependencies on Ubuntu and Windows. It rejects folder-open editor tasks, repository-supplied automatic task consent, symlinked editor/font surfaces, and executable-like files in `public/fonts`. Run `python scripts/check_editor_startup_source.py` locally to repeat the check; `python -m unittest discover -s tests -p test_editor_startup_guard.py -v` exercises inert regression fixtures. Neither command runs editor tasks or font assets.
+CI checks the checked-out source before installing dependencies on Ubuntu and Windows. The test workflow runs for pull requests and pushes to `main` (and the existing V1 work branch). It rejects folder-open editor tasks, repository-supplied automatic task consent, symlinked editor/font surfaces, and executable-like files in `public/fonts`. Run `python scripts/check_editor_startup_source.py` locally to repeat the check; `python -m unittest discover -s tests -p test_editor_startup_guard.py -v` exercises inert regression fixtures. Neither command runs editor tasks or font assets.
 
 This is source containment for the checked-out tree. It does not establish whether any previous local checkout opened in an editor executed an unsafe task; that requires separate host investigation. A CI pass is not deployment or runtime authority.
