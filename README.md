@@ -35,6 +35,31 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 - automatic proof that a receipt's claimed effect is true;
 - hidden reasoning transfer.
 
+## Experimental intra-machine host-peer data plane
+
+[`INTRANEL_HOST_PEER_V1`](spec/INTRANEL_HOST_PEER_V1.md) documents an opt-in,
+bounded `OPEN` / `READ_ONLY` `QUERY`/`REPORT` exchange for independent hosts.
+The source implementation provides exact canonical message framing,
+receiver-checked configured host/account/fingerprint bindings, durable SQLite
+inbox/outbox and stored ACK/readback with cold-restart replay control. It does
+**not** authenticate an SSH session, start a server, provision credentials,
+install models, run a remote query, establish a production worker, or prove
+live Lappy/VN1/VN2 delivery. A trusted transport must supply the independently
+observed peer identity; a constructed identity object is not authority.
+In particular, an inbound SSH server's host key does not authenticate its
+client-user key or the originating device; the future adapter must prove those
+identities against a pinned mapping. Remote ACKs remain storage **claims**
+until separately read back at the receiver.
+The SQLite DB pins its local-host owner; an existing unowned DB with records
+requires a reviewed migration. Already-committed exact retries can recover a
+lost ACK after packet expiry; new expired packets remain denied. Message IDs
+are unique per receiver store across all admitted sender peers.
+
+This host-peer seam is **distinct** from the optional Chat Communication Bus
+wire profile, which carries cross-chat coordination and has its own writer
+identity, permissions, and delivery state. Neither transport grants action
+authority from receipt or route selection.
+
 ## Verify locally
 
 ```bash
