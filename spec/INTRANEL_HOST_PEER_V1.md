@@ -1,6 +1,6 @@
 # INTRANEL_HOST_PEER_V1 — bounded source-stage two-host data plane
 
-Status: **candidate source/tests only; no authenticated Lappy/VN1/VN2 installation or live transport qualification**.
+Status: **candidate source/tests with opt-in SSH carrier; no authenticated Lappy/VN1/VN2 installation or live transport qualification**.
 
 ## Separation of responsibility
 
@@ -8,14 +8,31 @@ Status: **candidate source/tests only; no authenticated Lappy/VN1/VN2 installati
   effect class, and receipt claim semantics.
 - `INTRANEL_HOST_PEER_V1` owns only the bounded stream frames and durable
   delivery accounting for `OPEN` / `READ_ONLY` `QUERY` and `REPORT` packets.
-- An **external, trusted SSH/OS transport adapter** must authenticate the host
-  key fingerprint and OS account from the actual session and must supply the
-  `ObservedPeer` identity after checking a pinned per-peer local policy.
-  An inbound SSH server's own host key does **not** prove the inbound client's
-  account/key/host. The adapter additionally needs carrier-attested client-user
-  public-key identity, authenticated OS account, and an independently pinned
-  peer-host mapping; none of those can come from untrusted `ObservedPeer`
-  strings or JSON. Constructing an `ObservedPeer` object is not authentication.
+- The opt-in `ssh_carrier` module provides a restricted **client and POSIX
+  forced-command receiver adapter**, but source presence does not attest that
+  sshd actually enforces the required configuration. The outbound client
+  validates one pinned server host key in a literal `known_hosts` record,
+  creates an isolated snapshot, and invokes an absolute OpenSSH binary with
+  strict host-key/public-key-only/no-forwarding/no-proxy configuration. The
+  receiver uses OS UID/account plus OpenSSH `SSH_USER_AUTH` authentication
+  record to pin the separate **inbound client-user key** to a logical peer
+  host. Each side compares the relevant observed fingerprint/account to its
+  distinct `HostPeerStore` trusted-peer policy. The legacy
+  `ObservedPeer.host_key_fingerprint` field carries a carrier key fingerprint:
+  **outbound ACK = remote server host key; inbound request = client-user key**.
+  Those are never interchangeable; a host key alone does not prove the sender.
+- Source code **cannot independently prove** the receiver was launched via
+  restricted sshd `ForceCommand`. OpenSSH writes `SSH_USER_AUTH` under the
+  receiver login UID (see OpenSSH `session.c`), so that account can replace
+  the record if it has unrestricted shell/process/file access. Real use is
+  conditional on an independently verified locked-down dedicated account,
+  root-owned receiver policy, `ExposeAuthInfo yes`, `ForceCommand`,
+  public-key-only auth, `DisableForwarding yes`, `PermitTTY no`, controlled
+  `AcceptEnv`/`PermitUserEnvironment`, and an SSH session timeout. The
+  receiver fails closed on missing, symlinked, non-owned, world-readable,
+  malformed, multi-method, and non-ed25519 auth records. `ObservedPeer`
+  construction itself is still not authentication. Key possession binds an
+  admitted client identity, not independent physical-device custody proof.
 - Receiver admission to any action/effect, model execution, or role authority
   is **not** supplied by SSH, Tailscale, a host name, a message, or this store.
 - Chat Communication Bus remains the cross-chat transport. Its writer-local
@@ -71,11 +88,33 @@ effect occurred. No effect dispatch and no model inference are implemented.
 
 ## Remaining live-admission work
 
-1. Implement a host OS/SSH adapter that obtains the authenticated peer account
-   and public-key identity, with an independently verified host-key/host
-   mapping, from the *actual* carrier, not caller-provided strings. Restrict
-   remote commands and validate launched source/version pin on both hosts; no
-   credential export or new trust roots.
+1. **Install and independently qualify** the conditional SSH adapter on a
+   dedicated POSIX receiver account. `intranel-host-peer-receive` reads only
+   `/etc/intranel/host-peer.json` (not caller-supplied config arguments),
+   which must be root-owned, regular, non-symlink, and not group/other writable.
+   The JSON shape is:
+
+   ```json
+   {"local_host":"vn2","sqlite_path":"/var/lib/intranel/peer.sqlite3",
+    "peers":{"vn1":{"account":"intranelrx",
+                     "client_key_fingerprint":"SHA256:REPLACE_WITH_REAL_PUBLIC_KEY_FINGERPRINT"}}}
+   ```
+
+   This is **illustrative only**, not a valid enrolled identity. All configured
+   peer accounts must equal the OS account running the forced command; each
+   client fingerprint must map to exactly one host. `SSH_USER_AUTH` must be
+   produced by a reviewed sshd session, not set by a caller. Administrators
+   must independently verify the effective `sshd -T -C ...` Match policy,
+   forced command, account shell/authorized-keys restrictions, received key
+   identity, configured source/version, and database permissions. This source
+   does not edit host configurations or access private key material.
+   Outbound `SSHClientConfig` requires an absolute SSH binary/identity path,
+   an exact one-key known-hosts file, pinned SHA-256 server host fingerprint,
+   and target account/network hostname; no TOFU, password, proxy, forwarding,
+   multiple host keys, or downgrade fallback is allowed. Sender only commits
+   ACK after SSH exits successfully, and unsuccessful exchanges leave pending
+   state for resend. Sender has a 30-second process kill deadline; receiver
+   relies on independently provisioned sshd deadline and supervision.
 2. Prove Lappy↔VN1 and VN1↔VN2 over physical peer links, offline-Lappy
    independence, server process restarts, lost ACK, idempotent cold recovery,
    downgrade and wrong-account/fingerprint negatives. Record exact service
@@ -86,5 +125,10 @@ effect occurred. No effect dispatch and no model inference are implemented.
    production use.
 4. Preserve action authorization and receiver evidence as separate explicit
    gates before adding anything beyond READ_ONLY source transport.
+
+No Windows sshd auth-info ownership adapter exists yet, so Windows machines
+cannot serve as receiver with this module. The Linux/POSIX service is source
+only until actual account, sshd, installed binary and version, network route,
+and exact on-disk receiver inbox are verified on physical hosts.
 
 Run source tests with `PYTHONPATH=src python -m unittest discover -s tests -v`.
