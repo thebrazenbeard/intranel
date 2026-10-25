@@ -169,6 +169,12 @@ def verified_known_hosts_line(config):
             content = f.read(MAX_AUTH_INFO_BYTES + 1)
     except (OSError, ValueError) as exc:
         raise HostPeerConflict("SSH pinned known-hosts unavailable") from exc
+    # Windows-written text files commonly use CRLF. Canonicalize only a
+    # single terminal CRLF; embedded CR bytes or extra lines still fail.
+    if content.endswith(b"\r\n") and content.count(b"\r") == 1:
+        content = content[:-2] + b"\n"
+    elif b"\r" in content:
+        raise HostPeerConflict("invalid SSH pinned known-host line ending")
     if not 0 < len(content) <= MAX_AUTH_INFO_BYTES or content.count(b"\n") != 1:
         raise HostPeerConflict("pinned known-hosts must contain one entry")
     try:

@@ -35,6 +35,7 @@ class SSHCarrierTests(unittest.TestCase):
         self.auth.write_text(f"publickey ssh-ed25519 {_KEY_TEXT}\n", encoding="ascii")
         self.auth.chmod(0o600)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_actual_account_and_admitted_authentication_key_bound_to_host(self):
         observed = peer_from_sshd_auth_info(self.auth, {_FINGERPRINT: "lappy"})
         self.assertIsInstance(observed, ObservedPeer)
@@ -42,6 +43,7 @@ class SSHCarrierTests(unittest.TestCase):
         self.assertEqual(observed.host_key_fingerprint, _FINGERPRINT)
         self.assertTrue(observed.os_account)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_wrong_unrecognized_or_multiple_authentication_rejected(self):
         with self.assertRaises(HostPeerConflict):
             peer_from_sshd_auth_info(self.auth, {"SHA256:other": "lappy"})
@@ -56,6 +58,7 @@ class SSHCarrierTests(unittest.TestCase):
                 self.auth.write_text(invalid, encoding="ascii")
                 peer_from_sshd_auth_info(self.auth, {_FINGERPRINT: "lappy"})
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_missing_unsafe_auth_info_file_rejected(self):
         with self.assertRaises(HostPeerConflict):
             peer_from_sshd_auth_info(self.auth.parent / "missing", {_FINGERPRINT: "lappy"})
@@ -68,6 +71,7 @@ class SSHCarrierTests(unittest.TestCase):
             with self.assertRaises(HostPeerConflict):
                 peer_from_sshd_auth_info(link, {_FINGERPRINT: "lappy"})
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_forced_command_durable_receive_ack_and_duplicate(self):
         # The local OS account must be pinned separately from caller input.
         from intranel.ssh_carrier import current_os_account
@@ -86,6 +90,7 @@ class SSHCarrierTests(unittest.TestCase):
             self.assertIn(b'"status":"STORED"', ack)
             self.assertEqual(receiver.received_count(), 1)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_forced_command_rejects_noncanonical_packet_without_commit(self):
         from intranel.ssh_carrier import current_os_account
         receiver = HostPeerStore(Path(self.tmp.name) / "deny.db", local_host="vn1",
@@ -98,6 +103,7 @@ class SSHCarrierTests(unittest.TestCase):
                                    {_FINGERPRINT: "lappy"})
         self.assertEqual(receiver.received_count(), 0)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_forced_command_rejects_second_frame_and_trailing_bytes_atomically(self):
         from intranel.ssh_carrier import current_os_account
         from intranel.canonical import canonical_json_bytes
@@ -127,6 +133,8 @@ class SSHCarrierTests(unittest.TestCase):
                                  known_hosts=known_hosts,
                                  server_host_key_fingerprint=_FINGERPRINT)
         self.assertEqual(verified_known_hosts_line(config), line.encode("ascii"))
+        known_hosts.write_bytes(line.replace("\n", "\r\n").encode("ascii"))
+        self.assertEqual(verified_known_hosts_line(config), line.encode("ascii"))
         known_hosts.write_text(line.replace("vn1.tail.test", "wrong"), encoding="ascii")
         with self.assertRaises(HostPeerConflict):
             verified_known_hosts_line(config)
@@ -144,18 +152,20 @@ class SSHCarrierTests(unittest.TestCase):
             verified_known_hosts_line(wrong)
 
     def test_ssh_command_fences_config_proxy_password_and_host_key_downgrade(self):
+        path_root = Path(self.tmp.name)
         config = SSHClientConfig(peer_host="vn1", network_host="vn1.tail.test",
                                  remote_account="svc-vn1", port=22,
-                                 ssh_executable=Path("/usr/bin/ssh"),
-                                 identity_file=Path("/tmp/intranel-test-private-key"),
-                                 known_hosts=Path("/tmp/intranel-pinned-known-hosts"),
+                                 ssh_executable=path_root / "ssh",
+                                 identity_file=path_root / "intranel-test-private-key",
+                                 known_hosts=path_root / "intranel-pinned-known-hosts",
                                  server_host_key_fingerprint=_FINGERPRINT)
-        command = build_ssh_command(config, known_hosts_snapshot=Path("/tmp/pin-snapshot"))
+        pin_snapshot = path_root / "pin-snapshot"
+        command = build_ssh_command(config, known_hosts_snapshot=pin_snapshot)
         joined = " ".join(command)
         for required in ["StrictHostKeyChecking=yes", "PasswordAuthentication=no",
                          "PreferredAuthentications=publickey", "BatchMode=yes",
                          "ProxyCommand=none", "ProxyJump=none", "HostKeyAlgorithms=ssh-ed25519",
-                         "UserKnownHostsFile=/tmp/pin-snapshot", "-F none", "-T",
+                         f"UserKnownHostsFile={pin_snapshot}", "-F none", "-T",
                          "svc-vn1@vn1.tail.test", "intranel-host-peer-receive"]:
             self.assertIn(required, joined)
 
@@ -215,6 +225,7 @@ class SSHCarrierTests(unittest.TestCase):
                 exchange_pending_over_ssh(sender, packet, config)
             launch.assert_not_called()
 
+    @unittest.skipUnless(os.name == "posix", "POSIX sshd receiver only")
     def test_receiver_policy_requires_exact_pinned_accounts_and_keys(self):
         base = {"local_host": "vn2", "sqlite_path": "/var/lib/intranel/host-peer.db",
                 "peers": {"vn1": {"account": "intranelrx", "client_key_fingerprint":
