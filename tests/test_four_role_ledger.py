@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -247,7 +248,7 @@ class FourRoleLedgerTests(unittest.TestCase):
                                  "CAUSALLY_MATCHED_UNAUTHENTICATED")
                 mutated = deepcopy(req if altered == "request-1" else reply(req))
                 mutated["payload"]["task" if altered == "request-1" else "finding"] = "tampered"
-                with sqlite3.connect(db_path) as db:
+                with closing(sqlite3.connect(db_path)) as db, db:
                     db.execute("UPDATE observed SET content=? WHERE conversation_id=? AND message_id=?",
                                (json.dumps(mutated).encode("utf-8"), CONVERSATION, altered))
                 with self.assertRaisesRegex(CoordinationError, "stored observation integrity"):
@@ -270,7 +271,7 @@ class FourRoleLedgerTests(unittest.TestCase):
                          "MULTIPLE_REPLY_CLAIMS_RECONCILIATION_REQUIRED")
         altered = deepcopy(second)
         altered["parent_message_id"] = "another-parent"
-        with sqlite3.connect(self.file) as db:
+        with closing(sqlite3.connect(self.file)) as db, db:
             db.execute("UPDATE observed SET content=? WHERE message_id=?",
                        (json.dumps(altered).encode("utf-8"), "reply-2"))
         with self.assertRaisesRegex(CoordinationError, "stored observation integrity"):
