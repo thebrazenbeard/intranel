@@ -41,15 +41,32 @@ Intranel is **not a chain-of-thought transport**. It is **not an authority sourc
 bounded `OPEN` / `READ_ONLY` `QUERY`/`REPORT` exchange for independent hosts.
 The source implementation provides exact canonical message framing,
 receiver-checked configured host/account/fingerprint bindings, durable SQLite
-inbox/outbox and stored ACK/readback with cold-restart replay control. It does
-**not** authenticate an SSH session, start a server, provision credentials,
-install models, run a remote query, establish a production worker, or prove
-live Lappy/VN1/VN2 delivery. A trusted transport must supply the independently
-observed peer identity; a constructed identity object is not authority.
-In particular, an inbound SSH server's host key does not authenticate its
-client-user key or the originating device; the future adapter must prove those
-identities against a pinned mapping. Remote ACKs remain storage **claims**
-until separately read back at the receiver.
+inbox/outbox and stored ACK/readback with cold-restart replay control.
+`intranel.ssh_carrier` now supplies a **source-stage, conditional SSH adapter**:
+an outbound OpenSSH subprocess with an independently verified exact server
+host-key pin, no password/proxy/forwarding fallback, and bounded one-frame
+reply; plus a POSIX `intranel-host-peer-receive` forced-command entrypoint
+that admits only one `ssh-ed25519` public-key auth record from `SSH_USER_AUTH`,
+pins the authenticated **client** key to a logical host, and uses the actual
+OS UID/account. These are **two different keys** and two different policies.
+The server's host key alone does not prove who connected to it.
+The forced receiver requires stream EOF after exactly one framed packet
+*before* persisting anything or returning an ACK. Its caller closes stdin;
+the required sshd session timeout must independently bound a peer that stalls
+instead of closing the stream.
+
+**Not installed or qualified:** The receiver's auth-info file is writable by
+its login UID and can be forged if the account permits shell/other commands;
+it is **not standalone cryptographic evidence**. Real admission requires an
+administrator-verified dedicated restricted OpenSSH account with `ForceCommand`,
+`ExposeAuthInfo`, public-key-only authentication, controlled environment,
+disabled forwarding, and independently enrolled/pinned client and server keys.
+No such Lappy/VN1/VN2 operating-system configuration or live SSH exchange has
+been read back or qualified in this source branch. POSIX receiver only;
+Windows-host receiver admission is not implemented. This code does not
+provision credentials, models, or authority, run a remote query, or establish
+a production worker. Remote ACKs remain storage **claims** until separately
+read back at the receiver.
 The SQLite DB pins its local-host owner; an existing unowned DB with records
 requires a reviewed migration. Already-committed exact retries can recover a
 lost ACK after packet expiry; new expired packets remain denied. Message IDs

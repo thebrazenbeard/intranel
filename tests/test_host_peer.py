@@ -1,6 +1,7 @@
 """Host-peer state tests: two endpoints, external authenticated carrier mocked."""
 
 import io
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
@@ -194,10 +195,13 @@ class HostPeerTests(unittest.TestCase):
 
     def test_legacy_unowned_pending_store_cannot_silently_adopt_host(self):
         self.a.queue(msg())
-        with sqlite3.connect(self.alice_path) as db:
+        # sqlite3's context manager commits but does not close. Windows
+        # retains a file lock unless this legacy fixture closes explicitly.
+        with closing(sqlite3.connect(self.alice_path)) as db:
             if db.execute("SELECT count(*) FROM sqlite_master WHERE "
                           "type='table' AND name='host_peer_meta'").fetchone()[0]:
                 db.execute("DELETE FROM host_peer_meta")
+            db.commit()
         with self.assertRaisesRegex(HostPeerConflict, "owner"):
             HostPeerStore(self.alice_path, local_host="lappy", trusted_peers={
                 "vn1": ("svc-vn1", "SHA256:vn1-fingerprint")

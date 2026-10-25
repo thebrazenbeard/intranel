@@ -9,6 +9,9 @@ description = "Vera intranel machine communication protocol"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.scripts]
+intranel-host-peer-receive = "intranel.ssh_carrier:main"
+
 [project.optional-dependencies]
 test = ["jsonschema>=4.23,<5"]
 
