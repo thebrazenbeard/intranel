@@ -32,6 +32,34 @@ class EditorStartupSourceGuardTests(unittest.TestCase):
         self.put(".vscode/tasks.json", r'{"runOptions": {"runOn": "folder\u004fpen"}}')
         self.assertTrue(any("folder-open" in issue for issue in scan(self.root)))
 
+    def test_nested_editor_directory_auto_start_is_rejected(self):
+        self.put("subproject/.vscode/tasks.json", '{"runOn": "folderOpen"}')
+        self.assertTrue(any("folder-open" in issue for issue in scan(self.root)))
+
+    def test_nested_workspace_unicode_escaped_auto_start_is_rejected(self):
+        self.put(
+            "nested/protocol.code-workspace",
+            r'{"tasks": {"tasks": [{"runOptions": {"runOn": "folder\u004fpen"}}]}}',
+        )
+        self.assertTrue(any("folder-open" in issue for issue in scan(self.root)))
+
+    def test_workspace_automatic_task_consent_is_rejected(self):
+        self.put(
+            "subproject/intranel.code-workspace",
+            '{"settings": {"task.allowAutomaticTasks": true}}',
+        )
+        self.assertTrue(any("automatic task consent" in issue for issue in scan(self.root)))
+
+    def test_workspace_file_symlink_is_rejected_when_supported(self):
+        target = self.root / "inert.txt"
+        target.write_text("inert", encoding="utf-8")
+        symlink = self.root / "linked.code-workspace"
+        try:
+            symlink.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest("platform does not allow unprivileged symbolic links")
+        self.assertTrue(any("symbolic link" in issue for issue in scan(self.root)))
+
     def test_automatic_task_consent_is_rejected(self):
         self.put(".vscode/settings.json", '{"task.allowAutomaticTasks": true}')
         self.assertTrue(any("automatic task consent" in issue for issue in scan(self.root)))
