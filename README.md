@@ -4,6 +4,8 @@
 
 Use it when a multi-component system needs to distinguish **who originated a request**, **who relayed it**, **which exact operation and artifact it concerns**, **what effect was requested**, and **what the receiver has independently verified**. Intranel supplies a protocol and Python reference implementation—not an agent runtime, deployed message bus, or permission-granting service.
 
+Intranel is **not a chain-of-thought transport** and **not an authority source**. It does not carry hidden reasoning or delegate permission merely by being used.
+
 > **License:** Source-visible, **not open source**. The original material is proprietary; commercial use, redistribution, hosted-service use, and commercial derivatives require written permission. See [LICENSE](LICENSE) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). Third-party components retain their own licenses.
 
 ## What the product provides
