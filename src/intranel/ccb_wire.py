@@ -52,6 +52,8 @@ def encode_read_only_bus_document(
         raise BusWireError("only read-only query/request source packets are supported")
     if message.security_profile is not SecurityProfile.OPEN:
         raise BusWireError("private or sealed message cannot use plaintext Bus document")
+    if message.ack_required or message.expected_response is not None:
+        raise BusWireError("ack or response obligations cannot be preserved on observation-only wire")
     if (str(message.actor) not in ROLE_ADDRESSES
             or str(message.reply_to) not in ROLE_ADDRESSES):
         raise BusWireError("actor or reply address outside scoped pilot roles")
