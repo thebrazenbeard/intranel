@@ -36,8 +36,8 @@ jobs:
       - name: Prove pinned parser source and import are present
         run: |
           test "$(git -C .interop/ccb-core rev-parse HEAD)" = '273c93bc46683580024c1521fd2c523a8a6593bd'
-          PYTHONPATH=src:.interop/ccb-core/src python -c 'from radar.message_grammar import parse_bus_document; print("PINNED_CCB_PARSER_IMPORTED")'
+          PYTHONPATH=.interop/ccb-core/src:src python -c 'from pathlib import Path; import radar.message_grammar as parser; expected = Path(".interop/ccb-core/src/radar/message_grammar.py").resolve(); actual = Path(parser.__file__).resolve(); assert actual == expected, f"UNTRUSTED_CCB_PARSER_ORIGIN: {actual}"; assert callable(parser.parse_bus_document); print(f"PINNED_CCB_PARSER_IMPORTED: {actual}")'
 
       - name: Exercise actual Intranel to CCB Core source grammar
         run: |
-          PYTHONPATH=src:.interop/ccb-core/src python -m unittest discover -s tests -p 'test_ccb_wire.py' -v
+          PYTHONPATH=.interop/ccb-core/src:src python -m unittest discover -s tests -p 'test_ccb_wire.py' -v
