@@ -73,6 +73,19 @@ class WireTests(unittest.TestCase):
             with self.subTest(profile=profile), self.assertRaises(BusWireError):
                 wire(replace(query(), security_profile=profile))
 
+    def test_ack_and_response_obligations_rejected_instead_of_silently_dropped(self):
+        # The CCB document declares both obligations false. Preserve semantics
+        # by rejecting a packet that requires an acknowledgement or response.
+        for altered in (
+            replace(query(), ack_required=True),
+            replace(query(), expected_response=Performative.ACK),
+            replace(query(), ack_required=True, expected_response=Performative.ACK),
+        ):
+            with self.subTest(ack=altered.ack_required,
+                              response=altered.expected_response):
+                with self.assertRaisesRegex(BusWireError, "obligations"):
+                    wire(altered)
+
     def test_header_injection_and_unbounded_wire_rejected(self):
         for invalid in ("", "writer\nadmin: yes", "other\rrole", "contains spaces"):
             with self.subTest(invalid=invalid), self.assertRaises(BusWireError):
