@@ -1,0 +1,43 @@
+name: intranel-ccb-core-parser-contract
+
+on:
+  pull_request:
+    paths:
+      - src/intranel/ccb_wire.py
+      - tests/test_ccb_wire.py
+      - .github/workflows/intranel-ccb-core-parser.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source-only-parser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out proposed Intranel source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Check out immutable CCB Core parser
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: thebrazenbeard/ccb-core
+          ref: 273c93bc46683580024c1521fd2c523a8a6593bd
+          path: .interop/ccb-core
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+
+      - name: Prove pinned parser source and import are present
+        run: |
+          test "$(git -C .interop/ccb-core rev-parse HEAD)" = '273c93bc46683580024c1521fd2c523a8a6593bd'
+          PYTHONPATH=.interop/ccb-core/src:src python -c 'from pathlib import Path; import radar.message_grammar as parser; expected = Path(".interop/ccb-core/src/radar/message_grammar.py").resolve(); actual = Path(parser.__file__).resolve(); assert actual == expected, f"UNTRUSTED_CCB_PARSER_ORIGIN: {actual}"; assert callable(parser.parse_bus_document); print(f"PINNED_CCB_PARSER_IMPORTED: {actual}")'
+
+      - name: Exercise actual Intranel to CCB Core source grammar
+        run: |
+          PYTHONPATH=.interop/ccb-core/src:src python -m unittest discover -s tests -p 'test_ccb_wire.py' -v
