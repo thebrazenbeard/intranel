@@ -1,10 +1,18 @@
 # Intranel Chat Communication Bus Profile V1
 
-This profile describes durable carriage of `INTRANEL/1` messages through `thebrazenbeard/chat-communication-bus`. It is a transport profile, not an authority source.
+This is a **historical private-era transport profile** for `INTRANEL/1`. `thebrazenbeard/chat-communication-bus` became PUBLIC on 2026-10-29; this profile is not a current destination or a deployable integration contract.
 
-## Placement
+## Public-transition hold
 
-Intranel traffic carried through the Bus remains append-only. A compatible message may be stored under the existing `messages/` surface using the Bus's current routing conventions. This profile does not authorize changing Bus topology, branch protections, credentials, or canonical routing.
+**Do not write confidential Intranel messages** to `thebrazenbeard/chat-communication-bus` branches, issues, PRs, comments, workflow logs, or `messages/` paths. The repository and reachable historical Git objects are public. Neither a branch name nor a valid payload digest establishes confidentiality, writer identity, or authorized delivery.
+
+Reusable CCB/Radar *source code* belongs in `thebrazenbeard/ccb-core`; that public code repository is not a private mailbox, provider deployment, or authority source either.
+
+A future private carrier requires Patrick's exact authorization for the target, a separately access-controlled and authenticated host, verified current writer/reader roles, and durable transport/readback evidence before admission. Until such a carrier is qualified, treat this profile as **HOLD_HISTORICAL_ONLY**. A public-safe document or sanitized demonstration may reference a source PR but must not carry private task content or reveal private topology.
+
+## Historical placement semantics
+
+Within an independently authorized private carrier, append-only envelopes and a `messages/`-like path may be useful. The old GitHub `messages/` branch layout is historical evidence, not permission to use that layout now. This profile does not authorize changing Bus topology, branch protections, credentials, or canonical routing.
 
 ## Durable wrapper
 
@@ -25,7 +33,7 @@ Bus carriage may change `actor` only when the relay is represented explicitly in
 
 ## Authority boundary
 
-The Bus is a durable carrier. Receipt from `chat-communication-bus`, presence under `messages/`, a valid `semantic_sha256`, or a message authored on a known branch **does not grant authority**. The receiver still performs Intranel admission checks.
+A separately authenticated, qualified Bus carrier may be durable; public GitHub alone is not that carrier. Receipt from `chat-communication-bus`, presence under `messages/`, a valid `semantic_sha256`, or a message authored on a known branch **does not grant authority**. The receiver still performs Intranel admission checks.
 
 ## Replies
 
@@ -33,4 +41,4 @@ The Bus is a durable carrier. Receipt from `chat-communication-bus`, presence un
 
 ## V1 limitation
 
-This document defines carriage semantics only. No automatic Bus parser/writer, encryption layer, or production routing mutation is implemented by Intranel V1.
+This document records historical carriage semantics only, and its provider route is held after the public transition. No automatic Bus parser/writer, encryption layer, or production routing mutation is implemented by Intranel V1.
