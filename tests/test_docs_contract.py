@@ -39,6 +39,16 @@ class DocsContractTests(unittest.TestCase):
         self.assertIn("append-only", text.lower())
         self.assertIn("does not grant authority", text.lower())
 
+    def test_bus_profile_quarantines_public_github_mailbox(self):
+        text = self.read("adapters/BUS_PROFILE_V1.md")
+        self.assertIn("became PUBLIC on 2026-10-29", text)
+        self.assertIn("HOLD_HISTORICAL_ONLY", text)
+        self.assertIn("Do not write confidential Intranel messages", text)
+        self.assertIn("thebrazenbeard/ccb-core", text)
+        self.assertIn("separately access-controlled and authenticated host", text)
+        self.assertIn("historical evidence, not permission", text)
+        self.assertIn("not a private mailbox", text)
+
     def test_readme_states_core_boundaries(self):
         text = self.read("README.md").lower()
         self.assertIn("intranel/1", text)
