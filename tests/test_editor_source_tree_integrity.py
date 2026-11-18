@@ -4,7 +4,7 @@ Does not open the editor, execute the embedded script, or import old code.
 Tests the checkout itself, unlike the existing guard tests' temporary fixtures.
 """
 from pathlib import Path
-import subprocess
+import tempfile
 import unittest
 
 from scripts.check_editor_startup_source import scan
@@ -21,20 +21,25 @@ class EditorSourceTreeIntegrity(unittest.TestCase):
         self.assertFalse((ROOT / ".vscode" / "ini").exists())
         self.assertFalse((ROOT / ".vscode" / "tasks.json").exists())
 
-    def test_guard_catches_historical_main_but_not_current_candidate(self):
-        # This is a local source-only falsifier. Work with Git objects as BYTES;
-        # NEVER materialize or run the historical Node script.
-        historic = "ad9ee55dc5aba0882bdd93420d6e74b0e0c38f21"
-        for relative in (".vscode/tasks.json", ".vscode/settings.json"):
-            prior = subprocess.check_output(
-                ["git", "-C", str(ROOT), "show", f"{historic}:{relative}"]
-            ).decode("utf-8-sig")
-            self.assertTrue(
-                "folderOpen" in prior or "task.allowAutomaticTasks" in prior,
-                f"Expected source-staged startup evidence: {relative}",
+    def test_guard_catches_simulated_regression_without_git_history(self):
+        # Hosted CI uses a shallow checkout. Never require historical objects
+        # for a safety invariant in a running test.
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp)
+            editor = source / ".vscode"
+            editor.mkdir()
+            (editor / "tasks.json").write_text(
+                '{"tasks":[{"runOptions":{"runOn":"folderOpen"},"command":"node"}]}',
+                encoding="utf-8",
             )
-        self.assertFalse((ROOT / ".vscode" / "tasks.json").exists())
-        self.assertFalse((ROOT / ".vscode" / "ini").exists())
+            (editor / "settings.json").write_text(
+                '{"task.allowAutomaticTasks":true}', encoding="utf-8",
+            )
+            violations = scan(source)
+            self.assertTrue(any("folder-open" in item for item in violations))
+            self.assertTrue(any("automatic task consent" in item for item in violations))
+        self.assertEqual(scan(ROOT), [])
+
 
 
 if __name__ == "__main__":
